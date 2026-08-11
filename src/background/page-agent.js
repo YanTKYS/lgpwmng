@@ -9,7 +9,7 @@
  * @param {object} payload
  */
 export function pageAgent(action, payload) {
-  const FILLABLE_TAGS = ['input', 'select', 'textarea'];
+  const FILLABLE_SELECTOR = 'input, select, textarea';
   const IGNORED_INPUT_TYPES = ['submit', 'button', 'reset', 'image', 'file', 'hidden'];
 
   const GUESS_RULES = [
@@ -137,16 +137,61 @@ export function pageAgent(action, payload) {
 
   /** 入力対象になり得る要素と、その識別情報の組を返す。 */
   function collectTargets() {
+    const scan = createScanContext();
     const list = [];
-    for (const element of document.querySelectorAll('input, select, textarea')) {
-      if (!FILLABLE_TAGS.includes(element.tagName.toLowerCase())) continue;
+    for (const element of document.querySelectorAll(FILLABLE_SELECTOR)) {
       const type = (element.type || '').toLowerCase();
       if (IGNORED_INPUT_TYPES.includes(type)) continue;
       if (element.disabled || element.readOnly) continue;
       if (!isVisible(element)) continue;
-      list.push({ element, locator: buildLocator(element) });
+      list.push({ element, locator: buildLocator(element, scan) });
     }
     return list;
+  }
+
+  /**
+   * 走査中に使い回す位置情報。
+   *
+   * 入力欄ごとにページ全体を数え直すと、入力欄の多い画面では走査に数秒かかり
+   * 画面が固まったように見える。並び順はフォーム / 親要素ごとに 1 回だけ求める。
+   */
+  function createScanContext() {
+    const forms = Array.from(document.forms);
+    const orderCache = new Map();
+    const positionCache = new Map();
+
+    return {
+      /** フォーム（フォーム外は文書全体）の何番目の入力欄か。 */
+      indexInScope(scope, element) {
+        let order = orderCache.get(scope);
+        if (!order) {
+          order = new Map();
+          scope.querySelectorAll(FILLABLE_SELECTOR).forEach((node, index) => order.set(node, index));
+          orderCache.set(scope, order);
+        }
+        return order.has(element) ? order.get(element) : -1;
+      },
+
+      /** 親要素の中で、同じタグの何番目か（nth / 同じタグの総数）。 */
+      siblingPosition(node) {
+        const parent = node.parentElement;
+        let position = positionCache.get(parent);
+        if (!position) {
+          position = { nth: new Map(), total: new Map() };
+          for (const child of parent.children) {
+            const count = (position.total.get(child.tagName) || 0) + 1;
+            position.total.set(child.tagName, count);
+            position.nth.set(child, count);
+          }
+          positionCache.set(parent, position);
+        }
+        return { nth: position.nth.get(node), total: position.total.get(node.tagName) };
+      },
+
+      formIndex(form) {
+        return form ? forms.indexOf(form) : -1;
+      },
+    };
   }
 
   function isVisible(element) {
@@ -156,12 +201,8 @@ export function pageAgent(action, payload) {
     return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
   }
 
-  function buildLocator(element) {
+  function buildLocator(element, scan) {
     const form = element.form;
-    const forms = Array.from(document.forms);
-    const formIndex = form ? forms.indexOf(form) : -1;
-    const scope = form || document;
-    const siblings = Array.from(scope.querySelectorAll('input, select, textarea'));
     return {
       tagName: element.tagName.toLowerCase(),
       type: (element.type || '').toLowerCase(),
@@ -171,9 +212,9 @@ export function pageAgent(action, payload) {
       placeholder: element.getAttribute('placeholder') || '',
       ariaLabel: element.getAttribute('aria-label') || '',
       labelText: findLabelText(element),
-      cssPath: buildCssPath(element),
-      formIndex,
-      indexInForm: siblings.indexOf(element),
+      cssPath: buildCssPath(element, scan),
+      formIndex: scan.formIndex(form),
+      indexInForm: scan.indexInScope(form || document, element),
     };
   }
 
@@ -201,7 +242,7 @@ export function pageAgent(action, payload) {
     return texts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 80);
   }
 
-  function buildCssPath(element) {
+  function buildCssPath(element, scan) {
     const parts = [];
     let node = element;
     while (node && node.nodeType === 1 && parts.length < 8) {
@@ -210,18 +251,13 @@ export function pageAgent(action, payload) {
         break;
       }
       const tag = node.tagName.toLowerCase();
-      if (tag === 'html' || tag === 'body') {
+      if (tag === 'html' || tag === 'body' || !node.parentElement) {
         parts.unshift(tag);
         break;
       }
-      const parent = node.parentElement;
-      if (!parent) {
-        parts.unshift(tag);
-        break;
-      }
-      const sameTag = Array.from(parent.children).filter((child) => child.tagName === node.tagName);
-      parts.unshift(sameTag.length > 1 ? `${tag}:nth-of-type(${sameTag.indexOf(node) + 1})` : tag);
-      node = parent;
+      const { nth, total } = scan.siblingPosition(node);
+      parts.unshift(total > 1 ? `${tag}:nth-of-type(${nth})` : tag);
+      node = node.parentElement;
     }
     return parts.join(' > ');
   }

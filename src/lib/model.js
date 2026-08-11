@@ -212,7 +212,9 @@ function pickValues(values, fieldIds) {
 
 /**
  * 項目の区分（共通 / アカウント）を変更する。
- * 登録済みの値は捨てずに、変更後の区分側へ引き継ぐ。
+ * 変更後の区分側に値が無ければ引き継ぐだけで、変更前の区分の値は消さない。
+ * そのため、誤って区分を変えてしまっても戻せば元の値のまま使える
+ * （アカウントごとに異なる値を登録していた場合も失われない）。
  *
  * @param {object} service 値の保管先（sharedValues / accounts）を持つサービス
  * @param {object} field   区分を変更する項目
@@ -221,23 +223,21 @@ function pickValues(values, fieldIds) {
 export function changeFieldScope(service, field, nextScope) {
   const scope = nextScope === FIELD_SCOPE.SHARED ? FIELD_SCOPE.SHARED : FIELD_SCOPE.ACCOUNT;
   if (field.scope === scope) return;
+  field.scope = scope;
 
   if (scope === FIELD_SCOPE.SHARED) {
+    if (service.sharedValues[field.id]) return;
     // アカウント側に値があれば、最初に見つかった値を共通値として引き継ぐ。
     const inherited = service.accounts.map((account) => account.values[field.id]).find(Boolean);
-    if (inherited && !service.sharedValues[field.id]) service.sharedValues[field.id] = inherited;
-    for (const account of service.accounts) delete account.values[field.id];
-  } else {
-    const shared = service.sharedValues[field.id];
-    // 共通値を、まだ値を持たないアカウントへ引き継ぐ。
-    if (shared) {
-      for (const account of service.accounts) {
-        if (!account.values[field.id]) account.values[field.id] = shared;
-      }
-    }
-    delete service.sharedValues[field.id];
+    if (inherited) service.sharedValues[field.id] = inherited;
+    return;
   }
-  field.scope = scope;
+  // 共通値を、まだ値を持たないアカウントへ引き継ぐ。
+  const shared = service.sharedValues[field.id];
+  if (!shared) return;
+  for (const account of service.accounts) {
+    if (!account.values[field.id]) account.values[field.id] = shared;
+  }
 }
 
 /**
