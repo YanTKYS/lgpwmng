@@ -13,6 +13,7 @@ import {
   createField,
   createMatchRule,
   createService,
+  isPendingRule,
   normalizeOrigin,
 } from '../lib/model.js';
 import { $, clear, el, setStatus } from '../ui/dom.js';
@@ -106,9 +107,16 @@ export function createServiceEditor({ onChanged }) {
     const body = $('#rule-rows');
     clear(body);
     for (const rule of service.matchRules) {
+      // protocol 未確定の旧条件は、対象ページを開いた時点で自動的に確定する。
+      const pending = isPendingRule(rule);
       const row = el('tr', {}, [
-        el('td', {}, [textInput(rule.origin, (value) => { rule.origin = normalizeOrigin(value); }, {
-          placeholder: 'https://example.asp.lgwan.jp',
+        el('td', {}, [textInput(rule.origin, (value) => {
+          rule.origin = normalizeOrigin(value);
+          if (rule.origin) delete rule.legacy;
+        }, {
+          placeholder: pending
+            ? `${rule.legacy.hostname}（プロトコル未確定・対象ページを開くと自動設定）`
+            : 'https://example.asp.lgwan.jp',
         })]),
         el('td', { className: 'col-mode' }, [
           select(ORIGIN_MODE_LABELS, rule.originMode, (value) => { rule.originMode = value; }),

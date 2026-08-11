@@ -4,7 +4,7 @@
  */
 
 import { MSG } from '../lib/messages.js';
-import { findMatchingServices, serviceMatchesUrl } from '../lib/match.js';
+import { findMatchingServices, migrateLegacyRulesForUrl, serviceMatchesUrl } from '../lib/match.js';
 import {
   ACCOUNT_ROLE,
   buildFillValues,
@@ -98,10 +98,8 @@ async function handle(message) {
       return { deleted: true };
     }
 
-    case MSG.SERVICE_MATCH: {
-      const vault = await getVault();
-      return { services: findMatchingServices(vault, payload.url).map(summarizeService) };
-    }
+    case MSG.SERVICE_MATCH:
+      return matchForPage(payload);
 
     case MSG.PAGE_SCAN:
       return scanPage(payload.tabId);
@@ -137,6 +135,36 @@ async function saveService(rawService) {
   }
   await saveVault(vault);
   return { serviceId: service.id };
+}
+
+/**
+ * 現在のページに対応するサービスを返す。
+ *
+ * この時点で、protocol 未確定（v0.1.0 形式）の URL 条件のうち現在のページに
+ * 該当するものを、実際の origin で確定させて Vault へ保存する。
+ * 判定に用いる URL は、可能な限り background 側で取得した値を優先する。
+ */
+async function matchForPage({ url, tabId }) {
+  const vault = await getVault();
+  const resolvedUrl = (await readTabUrl(tabId)) || url;
+  const migration = migrateLegacyRulesForUrl(vault, resolvedUrl);
+  if (migration.changed) await saveVault(vault);
+  return {
+    url: resolvedUrl,
+    services: findMatchingServices(vault, resolvedUrl).map(summarizeService),
+    migratedCount: migration.migrated.length,
+  };
+}
+
+/** タブの URL を取得する。取得できない場合は null（推測はしない）。 */
+async function readTabUrl(tabId) {
+  if (!Number.isInteger(tabId)) return null;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return tab && tab.url ? tab.url : null;
+  } catch {
+    return null;
+  }
 }
 
 async function scanPage(tabId) {

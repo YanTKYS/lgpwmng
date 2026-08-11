@@ -10,7 +10,12 @@
  *       └─ accounts[]     … 複数アカウント（通常 / 管理者）
  */
 
-export const SCHEMA_VERSION = 2;
+/**
+ * 1: hostname + pathname
+ * 2: origin + pathname
+ * 3: origin + pathname（protocol 未確定の旧条件を legacy として保持できる）
+ */
+export const SCHEMA_VERSION = 3;
 
 export const FIELD_SCOPE = { SHARED: 'shared', ACCOUNT: 'account' };
 export const FIELD_KIND = { TEXT: 'text', SECRET: 'secret' };
@@ -47,34 +52,56 @@ export function createService(name = '') {
   };
 }
 
+/**
+ * URL 判定条件を作る。
+ *
+ * origin が確定していない場合（schemaVersion 1 の hostname 形式）は、
+ * プロトコルを推測せずに legacy として保持する。protocol 未確定のルールは
+ * どの URL にも一致しないため、確定するまで認証情報が入力されることはない。
+ */
 export function createMatchRule(partial = {}) {
-  const legacy = migrateLegacyRule(partial);
-  return {
+  const legacy = readLegacy(partial);
+  const origin = normalizeOrigin(partial.origin);
+  const rule = {
     id: newId('rule'),
-    origin: normalizeOrigin(partial.origin || legacy.origin),
-    originMode: (partial.originMode || legacy.originMode) === ORIGIN_MODE.SUFFIX
-      ? ORIGIN_MODE.SUFFIX
-      : ORIGIN_MODE.EXACT,
+    origin,
+    originMode: resolveOriginMode(partial, legacy),
     pathname: partial.pathname || '',
     pathnameMode: partial.pathnameMode || PATHNAME_MODE.EXACT,
   };
+  // origin が確定していれば legacy は不要になる。
+  if (!origin && legacy) rule.legacy = legacy;
+  return rule;
+}
+
+function resolveOriginMode(partial, legacy) {
+  const mode = partial.originMode || (legacy ? legacy.hostnameMode : '');
+  return mode === ORIGIN_MODE.SUFFIX ? ORIGIN_MODE.SUFFIX : ORIGIN_MODE.EXACT;
 }
 
 /**
- * schemaVersion 1（hostname + pathname）で保存された条件を origin 形式へ変換する。
- * プロトコルの記録がないため https として扱う。
+ * protocol 未確定の旧条件を取り出す。
+ * schemaVersion 1 の `hostname` / `hostnameMode`、および
+ * schemaVersion 3 で保存した `legacy` の双方を受け付ける。
  */
-function migrateLegacyRule(partial) {
-  if (!partial || typeof partial.hostname !== 'string' || !partial.hostname) return {};
+function readLegacy(partial) {
+  const source = partial && partial.legacy && typeof partial.legacy === 'object' ? partial.legacy : partial;
+  if (!source || typeof source.hostname !== 'string' || !source.hostname.trim()) return null;
   return {
-    origin: `https://${partial.hostname}`,
-    originMode: partial.hostnameMode === ORIGIN_MODE.SUFFIX ? ORIGIN_MODE.SUFFIX : ORIGIN_MODE.EXACT,
+    hostname: source.hostname.trim().toLowerCase().replace(/^\.+/, ''),
+    hostnameMode: source.hostnameMode === ORIGIN_MODE.SUFFIX ? ORIGIN_MODE.SUFFIX : ORIGIN_MODE.EXACT,
   };
 }
 
+/** protocol が未確定（実際のページを開くまで一致しない）ルールか。 */
+export function isPendingRule(rule) {
+  return Boolean(rule && !rule.origin && rule.legacy && rule.legacy.hostname);
+}
+
 /**
- * 入力された文字列を origin 表記へ正規化する。
- * プロトコル省略時は https を補う（http は明示的な指定を必要とする）。
+ * 設定画面で入力された文字列を origin 表記へ正規化する。
+ * プロトコル省略時は https を補う（利用者が明示的に入力した値に対する既定であり、
+ * 保存済みデータの protocol 推測には用いない）。
  */
 export function normalizeOrigin(value) {
   const raw = String(value || '').trim();
