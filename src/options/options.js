@@ -58,7 +58,11 @@ function renderList() {
         click: async () => {
           state.selectedId = service.id;
           renderList();
-          await editor.load(service.id);
+          try {
+            await editor.load(service.id);
+          } catch (error) {
+            setStatus($('#editor-status'), error.message, 'error');
+          }
         },
       },
     }, [
@@ -165,8 +169,22 @@ $('#form-export').addEventListener('submit', async (event) => {
   }
 });
 
+/** ファイル名用の日時（端末のローカル時刻）。 */
+function timestamp() {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, '0');
+  return [
+    now.getFullYear(),
+    pad(now.getMonth() + 1),
+    pad(now.getDate()),
+    pad(now.getHours()),
+    pad(now.getMinutes()),
+    pad(now.getSeconds()),
+  ].join('');
+}
+
 function downloadJson(backup) {
-  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const stamp = timestamp();
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const anchor = el('a', { attrs: { href: url, download: `lgpwmng-backup-${stamp}.json` } });

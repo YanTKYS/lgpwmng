@@ -9,6 +9,7 @@ import {
   FIELD_SCOPE,
   ORIGIN_MODE,
   PATHNAME_MODE,
+  changeFieldScope,
   createAccount,
   createField,
   createMatchRule,
@@ -81,6 +82,26 @@ export function createServiceEditor({ onChanged }) {
     return el('div', { className: 'secret-row' }, [input, toggle]);
   }
 
+  /**
+   * オリジン入力欄。入力途中の値を正規化してしまわないよう、
+   * 確定（フォーカスが外れた時点）で正規化し、その結果を画面へも反映する。
+   */
+  function originInput(rule, placeholder) {
+    const input = el('input', {
+      attrs: { type: 'text', autocomplete: 'off', placeholder },
+      props: { value: rule.origin || '' },
+      on: {
+        change: () => {
+          rule.origin = normalizeOrigin(input.value);
+          input.value = rule.origin;
+          // オリジンが確定すれば、protocol 未確定の旧条件は不要になる。
+          if (rule.origin) delete rule.legacy;
+        },
+      },
+    });
+    return input;
+  }
+
   function valueInput(field, value, onChange) {
     return field.kind === FIELD_KIND.SECRET
       ? secretInput(value, onChange)
@@ -110,14 +131,9 @@ export function createServiceEditor({ onChanged }) {
       // protocol 未確定の旧条件は、対象ページを開いた時点で自動的に確定する。
       const pending = isPendingRule(rule);
       const row = el('tr', {}, [
-        el('td', {}, [textInput(rule.origin, (value) => {
-          rule.origin = normalizeOrigin(value);
-          if (rule.origin) delete rule.legacy;
-        }, {
-          placeholder: pending
-            ? `${rule.legacy.hostname}（プロトコル未確定・対象ページを開くと自動設定）`
-            : 'https://example.asp.lgwan.jp',
-        })]),
+        el('td', {}, [originInput(rule, pending
+          ? `${rule.legacy.hostname}（プロトコル未確定・対象ページを開くと自動設定）`
+          : 'https://example.asp.lgwan.jp')]),
         el('td', { className: 'col-mode' }, [
           select(ORIGIN_MODE_LABELS, rule.originMode, (value) => { rule.originMode = value; }),
         ]),
@@ -179,13 +195,8 @@ export function createServiceEditor({ onChanged }) {
         })]),
         el('td', { className: 'col-mode' }, [
           select(SCOPE_LABELS, field.scope, (value) => {
-            field.scope = value;
-            // 区分変更時は不要になった側の値を破棄する。
-            if (value === FIELD_SCOPE.SHARED) {
-              for (const account of service.accounts) delete account.values[field.id];
-            } else {
-              delete service.sharedValues[field.id];
-            }
+            // 入力済みの値は破棄せず、変更後の区分側へ引き継ぐ。
+            changeFieldScope(service, field, value);
             renderSharedValues();
             renderAccounts();
           }),
@@ -321,8 +332,25 @@ export function createServiceEditor({ onChanged }) {
     renderAccounts();
   });
 
+  /**
+   * 保存前の確認。どの URL にも一致しないサービスが黙って出来上がるのを防ぐ。
+   * @returns {string} 問題があればその内容、なければ空文字
+   */
+  function validate() {
+    if (!service.name.trim()) return 'サービス名を入力してください。';
+    if (!service.matchRules.length) return '対象URLの条件を 1 つ以上追加してください。';
+    const invalid = service.matchRules.some((rule) => !rule.origin && !isPendingRule(rule));
+    if (invalid) return 'オリジンを「https://ホスト名」の形式で入力してください。';
+    return '';
+  }
+
   $('#btn-save-service').addEventListener('click', async () => {
     if (!service) return;
+    const problem = validate();
+    if (problem) {
+      setStatus($('#editor-status'), problem, 'error');
+      return;
+    }
     try {
       const result = await request(MSG.SERVICE_SAVE, { service });
       service.id = result.serviceId;
@@ -342,7 +370,7 @@ export function createServiceEditor({ onChanged }) {
       await request(MSG.SERVICE_DELETE, { serviceId: service.id });
       service = null;
       render();
-      onChanged(null);
+      await onChanged(null);
     } catch (error) {
       setStatus($('#editor-status'), error.message, 'error');
     }

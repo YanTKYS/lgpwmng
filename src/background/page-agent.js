@@ -22,13 +22,23 @@ export function pageAgent(action, payload) {
     { keys: ['利用者id', 'ユーザーid', 'ユーザid', 'ログインid', '利用者番号', 'loginid', 'userid', 'username', 'uid', 'account'], label: 'ユーザーID', kind: 'text' },
   ];
 
-  const elements = collectElements();
+  // 入力欄と、その識別情報（locator）を 1 回だけ組み立てて使い回す。
+  // 項目ごとに組み立て直すと、入力欄の多い画面で画面が固まることがある。
+  const targets = collectTargets();
 
   if (action === 'scan') {
     return {
       url: location.href,
       title: document.title,
-      candidates: elements.map((element, index) => describe(element, index)),
+      candidates: targets.map((target, index) => {
+        const guess = guessMeaning(target.locator);
+        return {
+          index,
+          locator: target.locator,
+          guessLabel: guess.label,
+          guessKind: guess.kind,
+        };
+      }),
     };
   }
 
@@ -125,7 +135,8 @@ export function pageAgent(action, payload) {
 
   // --- 要素収集 ---------------------------------------------------------
 
-  function collectElements() {
+  /** 入力対象になり得る要素と、その識別情報の組を返す。 */
+  function collectTargets() {
     const list = [];
     for (const element of document.querySelectorAll('input, select, textarea')) {
       if (!FILLABLE_TAGS.includes(element.tagName.toLowerCase())) continue;
@@ -133,7 +144,7 @@ export function pageAgent(action, payload) {
       if (IGNORED_INPUT_TYPES.includes(type)) continue;
       if (element.disabled || element.readOnly) continue;
       if (!isVisible(element)) continue;
-      list.push(element);
+      list.push({ element, locator: buildLocator(element) });
     }
     return list;
   }
@@ -143,24 +154,6 @@ export function pageAgent(action, payload) {
     if (rect.width === 0 && rect.height === 0) return false;
     const style = getComputedStyle(element);
     return style.visibility !== 'hidden' && style.display !== 'none' && style.opacity !== '0';
-  }
-
-  function describe(element, index) {
-    const locator = buildLocator(element);
-    const guess = guessMeaning(element, locator);
-    return {
-      index,
-      locator,
-      guessLabel: guess.label,
-      guessKind: guess.kind,
-      hasValue: Boolean(element.value),
-      options: element.tagName.toLowerCase() === 'select'
-        ? Array.from(element.options).slice(0, 50).map((option) => ({
-          value: option.value,
-          text: (option.textContent || '').trim().slice(0, 60),
-        }))
-        : [],
-    };
   }
 
   function buildLocator(element) {
@@ -237,7 +230,7 @@ export function pageAgent(action, payload) {
     return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(value) : value.replace(/[^\w-]/g, '\\$&');
   }
 
-  function guessMeaning(element, locator) {
+  function guessMeaning(locator) {
     const haystack = [
       locator.elementId,
       locator.name,
@@ -259,26 +252,26 @@ export function pageAgent(action, payload) {
 
   function resolve(locator, used) {
     let best = null;
-    for (const element of elements) {
-      if (used.has(element)) continue;
-      const score = scoreElement(element, locator);
+    for (const target of targets) {
+      if (used.has(target.element)) continue;
+      const score = scoreLocator(target.locator, locator);
       if (score <= 0) continue;
-      if (!best || score > best.score) best = { element, score };
+      if (!best || score > best.score) best = { element: target.element, score };
     }
     if (best && best.score >= 25) return { element: best.element, weak: best.score < 40 };
 
     // ヒントが一致しない場合でも、同種の入力欄が 1 つだけならそれを候補にする。
     if (locator.type) {
-      const sameType = elements.filter(
-        (element) => !used.has(element) && (element.type || '').toLowerCase() === locator.type,
+      const sameType = targets.filter(
+        (target) => !used.has(target.element) && target.locator.type === locator.type,
       );
-      if (sameType.length === 1) return { element: sameType[0], weak: true };
+      if (sameType.length === 1) return { element: sameType[0].element, weak: true };
     }
     return null;
   }
 
-  function scoreElement(element, locator) {
-    const current = buildLocator(element);
+  /** ページ上の入力欄（current）が、登録済みの識別情報（locator）とどれだけ一致するか。 */
+  function scoreLocator(current, locator) {
     if (locator.tagName && current.tagName !== locator.tagName) return 0;
     if (locator.type === 'password' && current.type !== 'password') return 0;
     if (locator.type && locator.type !== 'password' && current.type === 'password') return 0;
