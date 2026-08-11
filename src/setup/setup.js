@@ -58,8 +58,8 @@ async function loadService() {
   $('#rule-note').classList.toggle('hidden', !isExisting);
 
   const suggested = suggestRuleFromUrl(state.url);
-  $('#rule-hostname').value = suggested.hostname;
-  $('#rule-hostname-mode').value = suggested.hostnameMode;
+  $('#rule-origin').value = suggested.origin;
+  $('#rule-origin-mode').value = suggested.originMode;
   $('#rule-pathname').value = suggested.pathname;
   $('#rule-pathname-mode').value = suggested.pathnameMode;
 
@@ -288,8 +288,8 @@ function renderValues() {
 
 function buildRule() {
   return createMatchRule({
-    hostname: $('#rule-hostname').value.trim(),
-    hostnameMode: $('#rule-hostname-mode').value,
+    origin: $('#rule-origin').value.trim(),
+    originMode: $('#rule-origin-mode').value,
     pathname: $('#rule-pathname').value.trim() || '/',
     pathnameMode: $('#rule-pathname-mode').value,
   });
@@ -302,8 +302,8 @@ async function save() {
     return;
   }
   const rule = buildRule();
-  if (!rule.hostname) {
-    setStatus($('#save-status'), 'ホスト名を入力してください。', 'error');
+  if (!rule.origin) {
+    setStatus($('#save-status'), 'オリジンを「https://ホスト名」の形式で入力してください。', 'error');
     return;
   }
 
@@ -388,8 +388,8 @@ async function save() {
 function matchesSameTarget(existingRule, rule) {
   const url = parseUrl(state.url);
   if (url && ruleMatches(existingRule, url)) return true;
-  return existingRule.hostname === rule.hostname
-    && existingRule.hostnameMode === rule.hostnameMode
+  return existingRule.origin === rule.origin
+    && existingRule.originMode === rule.originMode
     && existingRule.pathname === rule.pathname
     && existingRule.pathnameMode === rule.pathnameMode;
 }

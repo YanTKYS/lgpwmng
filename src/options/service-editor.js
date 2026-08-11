@@ -7,18 +7,19 @@ import {
   ACCOUNT_ROLE,
   FIELD_KIND,
   FIELD_SCOPE,
-  HOSTNAME_MODE,
+  ORIGIN_MODE,
   PATHNAME_MODE,
   createAccount,
   createField,
   createMatchRule,
   createService,
+  normalizeOrigin,
 } from '../lib/model.js';
 import { $, clear, el, setStatus } from '../ui/dom.js';
 
-const HOSTNAME_MODE_LABELS = [
-  [HOSTNAME_MODE.EXACT, '完全一致'],
-  [HOSTNAME_MODE.SUFFIX, 'サブドメイン含む'],
+const ORIGIN_MODE_LABELS = [
+  [ORIGIN_MODE.EXACT, '完全一致'],
+  [ORIGIN_MODE.SUFFIX, 'サブドメイン含む'],
 ];
 const PATHNAME_MODE_LABELS = [
   [PATHNAME_MODE.EXACT, '完全一致'],
@@ -106,9 +107,11 @@ export function createServiceEditor({ onChanged }) {
     clear(body);
     for (const rule of service.matchRules) {
       const row = el('tr', {}, [
-        el('td', {}, [textInput(rule.hostname, (value) => { rule.hostname = value.trim(); })]),
+        el('td', {}, [textInput(rule.origin, (value) => { rule.origin = normalizeOrigin(value); }, {
+          placeholder: 'https://example.asp.lgwan.jp',
+        })]),
         el('td', { className: 'col-mode' }, [
-          select(HOSTNAME_MODE_LABELS, rule.hostnameMode, (value) => { rule.hostnameMode = value; }),
+          select(ORIGIN_MODE_LABELS, rule.originMode, (value) => { rule.originMode = value; }),
         ]),
         el('td', {}, [textInput(rule.pathname, (value) => { rule.pathname = value.trim(); })]),
         el('td', { className: 'col-mode' }, [

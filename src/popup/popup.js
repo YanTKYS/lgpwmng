@@ -229,8 +229,9 @@ function renderFillResult(result) {
   for (const entry of result.results) {
     const text = entry.status === 'filled' ? '入力しました'
       : entry.status === 'filled-weak' ? '入力しました（候補一致が弱いため要確認）'
-        : entry.status === 'not-found' ? '入力欄が見つかりません'
-          : '入力に失敗しました';
+        : entry.status === 'weak-skipped' ? '入力欄を特定できないため入力していません（設定を更新してください）'
+          : entry.status === 'not-found' ? '入力欄が見つかりません'
+            : '入力に失敗しました';
     list.append(el('li', {
       className: entry.status === 'filled' ? '' : 'warn',
       text: `${entry.label}: ${text}`,
