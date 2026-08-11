@@ -43,6 +43,9 @@ const ROLE_LABELS = [
 
 export function createServiceEditor({ onChanged }) {
   let service = null;
+  // 一覧を素早く切り替えたとき、先に開始した取得が後から完了しても
+  // 現在表示中のサービスを上書きしないための世代番号。
+  let loadVersion = 0;
 
   function select(options, value, onChange, className = '') {
     const node = el('select', { className });
@@ -378,12 +381,15 @@ export function createServiceEditor({ onChanged }) {
 
   return {
     async load(serviceId) {
+      const version = ++loadVersion;
       const result = await request(MSG.SERVICE_GET, { serviceId });
+      if (version !== loadVersion) return;
       service = result.service;
       setStatus($('#editor-status'), '');
       render();
     },
     createNew() {
+      loadVersion += 1;
       service = createService('');
       service.fields = [createField({ label: 'ユーザーID' }), createField({ label: 'パスワード', kind: FIELD_KIND.SECRET })];
       service.accounts = [createAccount({ name: '標準ユーザー' })];
@@ -392,6 +398,7 @@ export function createServiceEditor({ onChanged }) {
       render();
     },
     clear() {
+      loadVersion += 1;
       service = null;
       render();
     },
