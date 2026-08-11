@@ -1,0 +1,87 @@
+body {
+  width: 300px;
+}
+
+#app {
+  padding: 10px;
+}
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.popup-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+#service-name {
+  overflow-wrap: anywhere;
+}
+
+#page-location {
+  overflow-wrap: anywhere;
+}
+
+.account-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  max-height: 150px;
+  overflow-y: auto;
+}
+
+.account-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.account-item + .account-item {
+  border-top: 1px solid var(--border);
+}
+
+.account-item:hover {
+  background: var(--bg-sub);
+}
+
+.account-item .name {
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.account-list .empty {
+  padding: 6px;
+  color: var(--fg-muted);
+}
+
+.result-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  max-height: 110px;
+  overflow-y: auto;
+}
+
+.result-list .warn {
+  color: var(--danger);
+}
+
+.popup-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.footer-links {
+  justify-content: flex-end;
+}

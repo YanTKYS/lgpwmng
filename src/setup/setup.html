@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>ログイン画面の設定 - lgpwmng</title>
+  <link rel="stylesheet" href="../ui/ui.css">
+  <link rel="stylesheet" href="setup.css">
+</head>
+<body>
+  <div class="page">
+    <header class="page-header">
+      <h1>ログイン画面の設定</h1>
+      <div id="page-url" class="small muted"></div>
+    </header>
+
+    <section id="locked" class="hidden stack">
+      <div class="notice">Vault がロックされています。</div>
+      <form id="form-unlock" class="row">
+        <input type="password" id="unlock-password" placeholder="マスターパスワード" autocomplete="current-password">
+        <button type="submit" class="primary">アンロック</button>
+      </form>
+      <div id="unlock-status" class="status"></div>
+    </section>
+
+    <main id="main" class="hidden stack">
+      <section class="block">
+        <h2>サービス</h2>
+        <div class="grid-2">
+          <div>
+            <div class="field-label">サービス名</div>
+            <input type="text" id="service-name" placeholder="○○申請システム">
+          </div>
+          <div>
+            <div class="field-label">メモ（任意）</div>
+            <input type="text" id="service-note">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div>
+            <div class="field-label">ホスト名</div>
+            <div class="row">
+              <input type="text" id="rule-hostname">
+              <select id="rule-hostname-mode" class="mode">
+                <option value="exact">完全一致</option>
+                <option value="suffix">サブドメイン含む</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <div class="field-label">パス</div>
+            <div class="row">
+              <input type="text" id="rule-pathname">
+              <select id="rule-pathname-mode" class="mode">
+                <option value="exact">完全一致</option>
+                <option value="prefix">前方一致</option>
+                <option value="any">パス問わず</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <p id="rule-note" class="small muted hidden">このサービスには既存のURL条件があります。現在のURLが一致しない場合は条件が追加されます。</p>
+      </section>
+
+      <section class="block">
+        <div class="row block-head">
+          <h2>入力項目</h2>
+          <span class="small muted">自動判定は目安です。対象入力欄を確認してから保存してください。</span>
+          <span class="spacer"></span>
+          <button type="button" id="btn-rescan">再スキャン</button>
+          <button type="button" id="btn-add-field">項目を追加</button>
+        </div>
+        <table id="field-table">
+          <thead>
+            <tr>
+              <th class="col-use">使用</th>
+              <th class="col-label">表示名</th>
+              <th class="col-scope">区分</th>
+              <th class="col-kind">種別</th>
+              <th>対象入力欄</th>
+              <th class="col-action"></th>
+            </tr>
+          </thead>
+          <tbody id="field-rows"></tbody>
+        </table>
+        <p id="no-candidates" class="small muted hidden">入力欄の候補が取得できませんでした。ログイン画面を開いた状態で拡張アイコンから開き直してください。</p>
+      </section>
+
+      <section class="block" id="values-block">
+        <h2>値の登録</h2>
+        <div class="grid-2">
+          <div class="stack">
+            <h3 class="small">サービス共通値</h3>
+            <div id="shared-values" class="stack"></div>
+            <p id="shared-empty" class="small muted">区分を「共通」にした項目がここに表示されます。</p>
+          </div>
+          <div class="stack">
+            <h3 class="small">アカウント</h3>
+            <div class="row">
+              <input type="text" id="account-name" placeholder="標準ユーザー">
+              <select id="account-role" class="mode">
+                <option value="normal">通常</option>
+                <option value="admin">管理者</option>
+              </select>
+            </div>
+            <div id="account-values" class="stack"></div>
+          </div>
+        </div>
+        <p class="small muted">アカウントの追加や値の変更は、保存後に「サービス一覧」から行えます。</p>
+      </section>
+
+      <section class="block" id="existing-note-block">
+        <p class="small muted">既存サービスの設定を編集しています。値の変更は「サービス一覧」から行ってください。</p>
+      </section>
+
+      <footer class="page-footer">
+        <button type="button" id="btn-save" class="primary">保存</button>
+        <button type="button" id="btn-open-options">サービス一覧を開く</button>
+        <div id="save-status" class="status"></div>
+      </footer>
+    </main>
+  </div>
+
+  <template id="tpl-field-row">
+    <tr>
+      <td class="col-use"><input type="checkbox" class="use"></td>
+      <td class="col-label"><input type="text" class="label" placeholder="項目名"></td>
+      <td class="col-scope">
+        <select class="scope">
+          <option value="account">アカウント</option>
+          <option value="shared">共通</option>
+        </select>
+      </td>
+      <td class="col-kind">
+        <select class="kind">
+          <option value="text">通常</option>
+          <option value="secret">秘密</option>
+        </select>
+      </td>
+      <td><select class="candidate"></select></td>
+      <td class="col-action">
+        <button type="button" class="highlight link">確認</button>
+        <button type="button" class="remove link danger">削除</button>
+      </td>
+    </tr>
+  </template>
+
+  <script type="module" src="setup.js"></script>
+</body>
+</html>

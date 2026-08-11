@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>lgpwmng 設定</title>
+  <link rel="stylesheet" href="../ui/ui.css">
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>lgpwmng</h1>
+    <nav class="tabs">
+      <button type="button" class="tab-button" data-tab="services" aria-selected="true">サービス</button>
+      <button type="button" class="tab-button" data-tab="general" aria-selected="false">マスターパスワード / バックアップ</button>
+    </nav>
+    <span class="spacer"></span>
+    <button type="button" id="btn-lock">ロック</button>
+  </header>
+
+  <section id="locked" class="locked-panel hidden">
+    <form id="form-unlock" class="row">
+      <input type="password" id="unlock-password" placeholder="マスターパスワード" autocomplete="current-password">
+      <button type="submit" class="primary">アンロック</button>
+    </form>
+    <div id="unlock-status" class="status"></div>
+    <div id="init-hint" class="small muted hidden">マスターパスワードが未設定です。拡張アイコンから初期設定を行ってください。</div>
+  </section>
+
+  <main id="main" class="hidden">
+    <!-- サービスタブ -->
+    <div class="tab-panel" data-panel="services">
+      <aside class="sidebar">
+        <div class="row sidebar-head">
+          <input type="search" id="service-filter" placeholder="絞り込み">
+          <button type="button" id="btn-new-service">新規</button>
+        </div>
+        <ul id="service-list" class="service-list"></ul>
+      </aside>
+      <section id="editor" class="editor">
+        <p id="editor-empty" class="muted">左の一覧からサービスを選択してください。</p>
+        <div id="editor-body" class="hidden stack">
+          <div class="row editor-head">
+            <h2 id="editor-title">サービス</h2>
+            <span class="spacer"></span>
+            <button type="button" id="btn-save-service" class="primary">保存</button>
+            <button type="button" id="btn-delete-service" class="danger">削除</button>
+          </div>
+          <div id="editor-status" class="status"></div>
+
+          <section class="block">
+            <div class="grid-2">
+              <div>
+                <div class="field-label">サービス名</div>
+                <input type="text" id="svc-name">
+              </div>
+              <div>
+                <div class="field-label">メモ</div>
+                <input type="text" id="svc-note">
+              </div>
+            </div>
+          </section>
+
+          <section class="block">
+            <div class="row block-head">
+              <h3>対象URL</h3>
+              <span class="spacer"></span>
+              <button type="button" id="btn-add-rule">条件を追加</button>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>ホスト名</th>
+                  <th class="col-mode">判定</th>
+                  <th>パス</th>
+                  <th class="col-mode">判定</th>
+                  <th class="col-action"></th>
+                </tr>
+              </thead>
+              <tbody id="rule-rows"></tbody>
+            </table>
+          </section>
+
+          <section class="block">
+            <div class="row block-head">
+              <h3>入力項目</h3>
+              <span class="spacer"></span>
+              <span class="small muted">対象入力欄はログイン画面から設定するのが確実です。</span>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>表示名</th>
+                  <th class="col-mode">区分</th>
+                  <th class="col-mode">種別</th>
+                  <th>対象入力欄の識別情報</th>
+                  <th class="col-action"></th>
+                </tr>
+              </thead>
+              <tbody id="field-rows"></tbody>
+            </table>
+            <p id="field-empty" class="small muted hidden">項目が登録されていません。ログイン画面で拡張アイコンから「このログイン画面を設定」を実行してください。</p>
+          </section>
+
+          <section class="block">
+            <h3>サービス共通値</h3>
+            <div id="shared-values" class="value-grid"></div>
+            <p id="shared-empty" class="small muted hidden">区分が「共通」の項目はありません。</p>
+          </section>
+
+          <section class="block">
+            <div class="row block-head">
+              <h3>アカウント</h3>
+              <span class="spacer"></span>
+              <button type="button" id="btn-add-account">アカウントを追加</button>
+            </div>
+            <div id="account-list" class="stack"></div>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <!-- 全般タブ -->
+    <div class="tab-panel hidden" data-panel="general">
+      <section class="general-panel stack">
+        <section class="block">
+          <h3>マスターパスワードの変更</h3>
+          <form id="form-password" class="stack narrow">
+            <div>
+              <div class="field-label">現在のマスターパスワード</div>
+              <input type="password" id="current-password" autocomplete="current-password">
+            </div>
+            <div>
+              <div class="field-label">新しいマスターパスワード（8文字以上）</div>
+              <input type="password" id="new-password" autocomplete="new-password">
+            </div>
+            <div>
+              <div class="field-label">確認のため再入力</div>
+              <input type="password" id="new-password-confirm" autocomplete="new-password">
+            </div>
+            <div class="row">
+              <button type="submit" class="primary">変更する</button>
+              <div id="password-status" class="status"></div>
+            </div>
+          </form>
+        </section>
+
+        <section class="block">
+          <h3>バックアップ</h3>
+          <p class="small muted">バックアップファイルは暗号化されます。パスフレーズを忘れると復元できません。</p>
+          <form id="form-export" class="stack narrow">
+            <div>
+              <div class="field-label">バックアップ用パスフレーズ（8文字以上）</div>
+              <input type="password" id="export-passphrase" autocomplete="new-password">
+            </div>
+            <div class="row">
+              <button type="submit" class="primary">エクスポート</button>
+              <div id="export-status" class="status"></div>
+            </div>
+          </form>
+        </section>
+
+        <section class="block">
+          <h3>復元</h3>
+          <form id="form-import" class="stack narrow">
+            <div>
+              <div class="field-label">バックアップファイル</div>
+              <input type="file" id="import-file" accept=".json,application/json">
+            </div>
+            <div>
+              <div class="field-label">バックアップ用パスフレーズ</div>
+              <input type="password" id="import-passphrase" autocomplete="off">
+            </div>
+            <div>
+              <div class="field-label">取り込み方法</div>
+              <select id="import-mode">
+                <option value="merge">追加（既存サービスは残す）</option>
+                <option value="replace">置換（既存サービスを削除）</option>
+              </select>
+            </div>
+            <div class="row">
+              <button type="submit">復元する</button>
+              <div id="import-status" class="status"></div>
+            </div>
+          </form>
+        </section>
+
+        <section class="block">
+          <h3>この拡張について</h3>
+          <p class="small muted">lgpwmng v0.1.0 / 外部通信なし・端末内のみで動作します。認証情報は AES-GCM で暗号化して保存されます。</p>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>

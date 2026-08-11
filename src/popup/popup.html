@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>lgpwmng</title>
+  <link rel="stylesheet" href="../ui/ui.css">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main id="app">
+    <!-- 初回セットアップ -->
+    <section id="view-init" class="view hidden">
+      <h1>マスターパスワードの設定</h1>
+      <p class="small muted">登録した認証情報はこのパスワードで暗号化されます。忘れた場合は復元できません。</p>
+      <form id="form-init" class="stack">
+        <div>
+          <div class="field-label">マスターパスワード（8文字以上）</div>
+          <input type="password" id="init-password" autocomplete="new-password" required>
+        </div>
+        <div>
+          <div class="field-label">確認のため再入力</div>
+          <input type="password" id="init-password-confirm" autocomplete="new-password" required>
+        </div>
+        <button type="submit" class="primary">設定する</button>
+        <div id="init-status" class="status"></div>
+      </form>
+    </section>
+
+    <!-- アンロック -->
+    <section id="view-unlock" class="view hidden">
+      <h1>ロック解除</h1>
+      <form id="form-unlock" class="stack">
+        <div>
+          <div class="field-label">マスターパスワード</div>
+          <input type="password" id="unlock-password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="primary">アンロック</button>
+        <div id="unlock-status" class="status"></div>
+      </form>
+    </section>
+
+    <!-- 通常画面 -->
+    <section id="view-main" class="view hidden">
+      <header class="popup-header">
+        <h1 id="service-name">—</h1>
+        <div id="page-location" class="small muted"></div>
+      </header>
+
+      <div id="service-switch" class="hidden">
+        <div class="field-label">サービス</div>
+        <select id="service-select"></select>
+      </div>
+
+      <div id="account-block">
+        <div class="field-label">アカウント</div>
+        <div id="account-list" class="account-list"></div>
+      </div>
+
+      <div id="admin-confirm" class="notice hidden">
+        <label class="row">
+          <input type="checkbox" id="admin-confirm-check">
+          <span>管理者アカウントを使用します</span>
+        </label>
+      </div>
+
+      <div id="no-service" class="notice hidden">このページに対応するサービスは登録されていません。</div>
+
+      <button id="btn-fill" class="primary" disabled>ログイン情報を入力</button>
+      <div id="fill-status" class="status"></div>
+      <ul id="fill-result" class="result-list hidden"></ul>
+
+      <footer class="popup-footer">
+        <button id="btn-setup" class="link" type="button">このログイン画面を設定</button>
+        <div class="row footer-links">
+          <button id="btn-options" class="link" type="button">サービス一覧</button>
+          <span class="muted">/</span>
+          <button id="btn-lock" class="link" type="button">ロック</button>
+        </div>
+      </footer>
+    </section>
+  </main>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
