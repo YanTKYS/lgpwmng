@@ -192,21 +192,37 @@ export async function exportBackup(passphrase) {
 }
 
 /**
+ * 復号を試みる前に、バックアップファイルとして必要な項目が揃っているか確認する。
+ * 揃っていないまま復号へ進むと「パスフレーズが違います」と誤って案内してしまう。
+ */
+function isBackupFile(backup) {
+  return Boolean(
+    backup
+    && backup.format === BACKUP_FORMAT
+    && backup.kdf
+    && typeof backup.kdf.salt === 'string'
+    && Number.isFinite(backup.kdf.iterations)
+    && typeof backup.iv === 'string'
+    && typeof backup.data === 'string',
+  );
+}
+
+/**
  * バックアップを読み込む。
  * @param {object} backup
  * @param {string} passphrase
  * @param {'replace'|'merge'} mode
  */
 export async function importBackup(backup, passphrase, mode) {
-  if (!backup || backup.format !== BACKUP_FORMAT || !backup.kdf || !backup.data) {
-    throw new Error('バックアップファイルの形式が不正です。');
+  if (!isBackupFile(backup)) {
+    throw new Error('バックアップファイルの形式が不正です。lgpwmng で書き出したファイルを選択してください。');
   }
-  const key = await deriveKey(passphrase, backup.kdf);
   let imported;
   try {
+    const key = await deriveKey(passphrase, backup.kdf);
     imported = normalizeVault(await decryptJson(key, { iv: backup.iv, data: backup.data }));
   } catch {
-    throw new Error('バックアップのパスフレーズが違います。');
+    throw new Error('バックアップのパスフレーズが違うか、ファイルが壊れています。');
   }
   const current = await getVault();
   if (mode === 'merge') {

@@ -40,11 +40,20 @@ async function boot() {
   await showMain();
 }
 
+/**
+ * 現在のページを画面へ表示する。
+ * http と https は別サービスとして扱うため、プロトコル（とポート）を含めて表示する。
+ */
+function showPageLocation() {
+  const url = parseUrl(state.url);
+  $('#page-location').textContent = url ? `${url.origin}${url.pathname}` : '（対応していないページ）';
+  return url;
+}
+
 async function showMain() {
   showView('main');
-  const location = parseUrl(state.url);
-  $('#page-location').textContent = location ? `${location.hostname}${location.pathname}` : '（対応していないページ）';
-  $('#btn-setup').disabled = !location || state.tabId === null;
+  const location = showPageLocation();
+  $('#btn-setup').disabled = !location || !Number.isInteger(state.tabId);
 
   if (!location) {
     state.services = [];
@@ -57,8 +66,7 @@ async function showMain() {
     if (result.url) {
       // background 側で確定した URL を採用する。
       state.url = result.url;
-      const resolved = parseUrl(state.url);
-      if (resolved) $('#page-location').textContent = `${resolved.hostname}${resolved.pathname}`;
+      showPageLocation();
     }
     if (result.migratedCount) {
       setStatus($('#fill-status'), 'URL条件を現在のページに合わせて更新しました。', 'ok');
@@ -128,6 +136,7 @@ function renderAccounts(service) {
         change: () => {
           state.selectedAccountId = account.id;
           $('#admin-confirm-check').checked = false;
+          clearFillResult();
           updateFillButton();
         },
       },
@@ -154,7 +163,15 @@ function updateFillButton() {
   const isAdmin = Boolean(account) && account.role === ACCOUNT_ROLE.ADMIN;
   $('#admin-confirm').classList.toggle('hidden', !isAdmin);
   const confirmed = !isAdmin || $('#admin-confirm-check').checked;
-  $('#btn-fill').disabled = !account || !confirmed || state.tabId === null;
+  $('#btn-fill').disabled = !account || !confirmed || !Number.isInteger(state.tabId);
+}
+
+/** 前回の入力結果の表示を消す。別のサービス / アカウントへ切り替えたときに呼ぶ。 */
+function clearFillResult() {
+  const list = $('#fill-result');
+  clear(list);
+  list.classList.add('hidden');
+  setStatus($('#fill-status'), '');
 }
 
 // --- イベント ---------------------------------------------------------------
@@ -194,7 +211,10 @@ $('#form-unlock').addEventListener('submit', async (event) => {
 $('#service-select').addEventListener('change', (event) => {
   state.selectedServiceId = event.target.value;
   const service = currentService();
+  if (!service) return;
   $('#service-name').textContent = service.name;
+  $('#admin-confirm-check').checked = false;
+  clearFillResult();
   renderAccounts(service);
 });
 
@@ -222,28 +242,36 @@ $('#btn-fill').addEventListener('click', async () => {
   }
 });
 
+const RESULT_TEXTS = {
+  filled: '入力しました',
+  'filled-weak': '入力しました（候補一致が弱いため要確認）',
+  'weak-skipped': '入力欄を特定できないため入力していません（設定を更新してください）',
+  'not-found': '入力欄が見つかりません',
+  error: '入力に失敗しました',
+};
+
 function renderFillResult(result) {
   const list = $('#fill-result');
   clear(list);
   list.classList.remove('hidden');
-  const filled = result.results.filter((entry) => entry.status.startsWith('filled')).length;
-  const failed = result.results.filter((entry) => !entry.status.startsWith('filled'));
-  setStatus(
-    $('#fill-status'),
-    failed.length
-      ? `${filled}項目を入力（${failed.length}項目は入力できませんでした）`
-      : `${filled}項目を入力しました。ログイン操作は手動で行ってください。`,
-    failed.length ? 'error' : 'ok',
-  );
+
+  const filled = result.results.filter((entry) => entry.status.startsWith('filled'));
+  const weak = filled.filter((entry) => entry.status === 'filled-weak').length;
+  const failed = result.results.length - filled.length;
+
+  if (failed) {
+    setStatus($('#fill-status'), `${filled.length}項目を入力（${failed}項目は入力できませんでした）`, 'error');
+  } else if (weak) {
+    // 入力はできたが、入力先が確実ではない項目がある。緑色にはせず確認を促す。
+    setStatus($('#fill-status'), `${filled.length}項目を入力しました（うち${weak}項目は入力先の確認が必要です）。`);
+  } else {
+    setStatus($('#fill-status'), `${filled.length}項目を入力しました。ログイン操作は手動で行ってください。`, 'ok');
+  }
+
   for (const entry of result.results) {
-    const text = entry.status === 'filled' ? '入力しました'
-      : entry.status === 'filled-weak' ? '入力しました（候補一致が弱いため要確認）'
-        : entry.status === 'weak-skipped' ? '入力欄を特定できないため入力していません（設定を更新してください）'
-          : entry.status === 'not-found' ? '入力欄が見つかりません'
-            : '入力に失敗しました';
     list.append(el('li', {
       className: entry.status === 'filled' ? '' : 'warn',
-      text: `${entry.label}: ${text}`,
+      text: `${entry.label}: ${RESULT_TEXTS[entry.status] || RESULT_TEXTS.error}`,
     }));
   }
 }

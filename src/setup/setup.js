@@ -9,6 +9,7 @@ import {
   ACCOUNT_ROLE,
   FIELD_KIND,
   FIELD_SCOPE,
+  changeFieldScope,
   createAccount,
   createField,
   createMatchRule,
@@ -25,7 +26,6 @@ const state = {
   service: null,
   candidates: [],
   rows: [],
-  values: new Map(), // rowId -> 入力済みの値（新規サービス時のみ利用）
 };
 
 const SHARED_BY_DEFAULT = ['自治体コード', '所属コード'];
@@ -119,6 +119,13 @@ function matchCandidateIndex(locator) {
 }
 
 function renderRows() {
+  // 再スキャンで行を作り直しても入力済みの値が消えないよう、表示名をキーに引き継ぐ。
+  const entered = new Map();
+  for (const row of state.rows) {
+    const label = row.labelInput.value.trim();
+    if (label && row.valueInput.value) entered.set(label, row.valueInput.value);
+  }
+
   const body = $('#field-rows');
   clear(body);
   state.rows = [];
@@ -150,12 +157,14 @@ function renderRows() {
     });
   } else {
     state.candidates.forEach((candidate, index) => {
+      const label = candidate.guessLabel || candidate.locator.labelText || '';
       addRow({
-        label: candidate.guessLabel || candidate.locator.labelText || '',
+        label,
         scope: defaultScope(candidate.guessLabel),
         kind: candidate.guessKind,
         candidateIndex: index,
         use: Boolean(candidate.guessLabel),
+        value: entered.get(label),
       });
     });
   }
@@ -166,13 +175,8 @@ function defaultScope(label) {
   return SHARED_BY_DEFAULT.includes(label) ? FIELD_SCOPE.SHARED : FIELD_SCOPE.ACCOUNT;
 }
 
-let rowSeq = 0;
-
 function addRow(init = {}) {
-  const rowId = `row${rowSeq += 1}`;
   const tr = fromTemplate('tpl-field-row');
-  tr.dataset.rowId = rowId;
-
   const useInput = tr.querySelector('.use');
   const labelInput = tr.querySelector('.label');
   const scopeSelect = tr.querySelector('.scope');
@@ -198,8 +202,14 @@ function addRow(init = {}) {
     candidateSelect.value = 'keep';
   }
 
+  // 値の入力欄は行ごとに 1 つ作り、表示のたびに作り直さない（入力中の値が消えないように）。
+  const valueInput = el('input', {
+    className: 'value-input',
+    attrs: { type: 'text', autocomplete: 'off' },
+    props: { value: init.value || '' },
+  });
+
   const record = {
-    rowId,
     tr,
     fieldId: init.fieldId || null,
     locator: init.locator || null,
@@ -208,6 +218,7 @@ function addRow(init = {}) {
     scopeSelect,
     kindSelect,
     candidateSelect,
+    valueInput,
   };
 
   for (const node of [useInput, labelInput, scopeSelect, kindSelect]) {
@@ -222,16 +233,19 @@ function addRow(init = {}) {
       return;
     }
     try {
-      await request(MSG.PAGE_HIGHLIGHT, { tabId: state.tabId, locator });
-      setStatus($('#save-status'), '対象のログイン画面で該当欄を強調表示しました。', 'ok');
+      const result = await request(MSG.PAGE_HIGHLIGHT, { tabId: state.tabId, locator });
+      if (result && result.ok) {
+        setStatus($('#save-status'), '対象のログイン画面で該当欄を強調表示しました。', 'ok');
+      } else {
+        setStatus($('#save-status'), '対象の入力欄がログイン画面上に見つかりませんでした。', 'error');
+      }
     } catch (error) {
       setStatus($('#save-status'), error.message, 'error');
     }
   });
 
   tr.querySelector('.remove').addEventListener('click', () => {
-    state.rows = state.rows.filter((entry) => entry.rowId !== rowId);
-    state.values.delete(rowId);
+    state.rows = state.rows.filter((entry) => entry !== record);
     tr.remove();
     renderValues();
   });
@@ -263,16 +277,10 @@ function renderValues() {
     if (!row.useInput.checked) continue;
     const label = row.labelInput.value.trim();
     if (!label) continue;
-    const isSecret = row.kindSelect.value === FIELD_KIND.SECRET;
-    const input = el('input', {
-      className: 'value-input',
-      attrs: { type: isSecret ? 'password' : 'text', autocomplete: 'off' },
-      props: { value: state.values.get(row.rowId) || '' },
-      on: { input: (event) => state.values.set(row.rowId, event.target.value) },
-    });
+    row.valueInput.type = row.kindSelect.value === FIELD_KIND.SECRET ? 'password' : 'text';
     const block = el('div', { className: 'value-row' }, [
       el('div', { className: 'field-label', text: label }),
-      input,
+      row.valueInput,
     ]);
     if (row.scopeSelect.value === FIELD_SCOPE.SHARED) {
       shared.append(block);
@@ -341,7 +349,7 @@ async function save() {
     if (row.fieldId) field.id = row.fieldId;
     fields.push(field);
 
-    const value = state.values.get(row.rowId);
+    const value = row.valueInput.value;
     if (!state.service && value) {
       if (field.scope === FIELD_SCOPE.SHARED) sharedValues[field.id] = value;
       else accountValues[field.id] = value;
@@ -355,6 +363,12 @@ async function save() {
 
   let service;
   if (state.service) {
+    // 区分（共通 / アカウント）を変えた項目は、登録済みの値を新しい区分側へ移す。
+    for (const row of state.rows) {
+      if (!row.fieldId || !row.useInput.checked) continue;
+      const original = state.service.fields.find((field) => field.id === row.fieldId);
+      if (original) changeFieldScope(state.service, original, row.scopeSelect.value);
+    }
     service = { ...state.service, name, note: $('#service-note').value.trim(), fields };
     const alreadyMatches = service.matchRules.some((existing) => matchesSameTarget(existing, rule));
     if (!alreadyMatches) service.matchRules = service.matchRules.concat(rule);
@@ -376,7 +390,8 @@ async function save() {
     state.serviceId = result.serviceId;
     const fresh = await request(MSG.SERVICE_GET, { serviceId: result.serviceId });
     state.service = fresh.service;
-    state.values.clear();
+    // 保存後は画面上に認証情報を残さない。
+    for (const row of state.rows) row.valueInput.value = '';
     $('#values-block').classList.add('hidden');
     $('#existing-note-block').classList.remove('hidden');
     setStatus($('#save-status'), '保存しました。ログイン画面で拡張アイコンから入力できます。', 'ok');
