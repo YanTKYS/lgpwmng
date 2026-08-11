@@ -26,7 +26,12 @@ import {
   unlock,
 } from './vault-store.js';
 
-const SCAN_PREFIX = 'lgpwmng.scan.';
+/**
+ * 直前の走査結果の受け渡し先。
+ * popup が走査してから設定ページが読み出すまでの一時的な置き場のため、
+ * タブごとに貯めず最新の 1 件だけを保持する。
+ */
+const SCAN_KEY = 'lgpwmng.scan';
 
 initSessionStorage();
 
@@ -105,9 +110,9 @@ async function handle(message) {
       return scanPage(payload.tabId);
 
     case MSG.SCAN_RESULT_GET: {
-      const key = SCAN_PREFIX + payload.tabId;
-      const stored = await chrome.storage.session.get(key);
-      return stored[key] || null;
+      const stored = (await chrome.storage.session.get(SCAN_KEY))[SCAN_KEY];
+      // 別のタブを走査した結果を渡さない（設定ページが誤った入力欄を表示するため）。
+      return stored && stored.tabId === payload.tabId ? stored : null;
     }
 
     case MSG.PAGE_HIGHLIGHT:
@@ -169,9 +174,8 @@ async function readTabUrl(tabId) {
 
 async function scanPage(tabId) {
   const result = await runPageAgent(tabId, 'scan', {});
-  const key = SCAN_PREFIX + tabId;
   // 走査結果には入力値を含めない（page-agent 側で値そのものは返していない）。
-  await chrome.storage.session.set({ [key]: { ...result, scannedAt: Date.now() } });
+  await chrome.storage.session.set({ [SCAN_KEY]: { ...result, tabId, scannedAt: Date.now() } });
   return result;
 }
 

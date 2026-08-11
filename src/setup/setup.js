@@ -119,15 +119,7 @@ function matchCandidateIndex(locator) {
 }
 
 function renderRows() {
-  // 再スキャンで行を作り直しても入力済みの値が消えないよう、表示名をキーに引き継ぐ。
-  const entered = new Map();
-  for (const row of state.rows) {
-    const label = row.labelInput.value.trim();
-    if (label && row.valueInput.value) entered.set(label, row.valueInput.value);
-  }
-
-  const body = $('#field-rows');
-  clear(body);
+  clear($('#field-rows'));
   state.rows = [];
 
   if (state.service) {
@@ -145,29 +137,53 @@ function renderRows() {
         use: true,
       });
     }
-    state.candidates.forEach((candidate, index) => {
-      if (usedIndexes.has(index) || !candidate.guessLabel) return;
-      addRow({
-        label: candidate.guessLabel,
-        scope: defaultScope(candidate.guessLabel),
-        kind: candidate.guessKind,
-        candidateIndex: index,
-        use: false,
-      });
-    });
+    addRowsForUnusedCandidates(usedIndexes);
   } else {
     state.candidates.forEach((candidate, index) => {
-      const label = candidate.guessLabel || candidate.locator.labelText || '';
       addRow({
-        label,
+        label: candidate.guessLabel || candidate.locator.labelText || '',
         scope: defaultScope(candidate.guessLabel),
         kind: candidate.guessKind,
         candidateIndex: index,
         use: Boolean(candidate.guessLabel),
-        value: entered.get(label),
       });
     });
   }
+  renderValues();
+}
+
+/** どの行にも割り当てられていない候補のうち、項目名を推定できたものを行として追加する。 */
+function addRowsForUnusedCandidates(usedIndexes) {
+  state.candidates.forEach((candidate, index) => {
+    if (usedIndexes.has(index) || !candidate.guessLabel) return;
+    addRow({
+      label: candidate.guessLabel,
+      scope: defaultScope(candidate.guessLabel),
+      kind: candidate.guessKind,
+      candidateIndex: index,
+      use: false,
+    });
+  });
+}
+
+/**
+ * 再スキャンの結果を反映する。
+ * 行は作り直さずに「対象入力欄」の選択肢だけを差し替えるため、
+ * 入力途中の表示名・値や、手動で追加した項目がそのまま残る。
+ *
+ * @param {Array<object|null>} previousLocators 差し替え前に各行が指していた入力欄
+ */
+function applyRescan(previousLocators) {
+  const usedIndexes = new Set();
+  state.rows.forEach((row, position) => {
+    const locator = previousLocators[position];
+    const index = locator ? matchCandidateIndex(locator) : -1;
+    if (index >= 0) usedIndexes.add(index);
+    // 再スキャンで見失った入力欄は、識別情報を保持したまま「見つかりません」と表示する。
+    if (locator && index < 0) row.locator = locator;
+    fillCandidateOptions(row.candidateSelect, index, index < 0 ? locator : null);
+  });
+  addRowsForUnusedCandidates(usedIndexes);
   renderValues();
 }
 
@@ -188,25 +204,12 @@ function addRow(init = {}) {
   scopeSelect.value = init.scope || FIELD_SCOPE.ACCOUNT;
   kindSelect.value = init.kind === FIELD_KIND.SECRET ? FIELD_KIND.SECRET : FIELD_KIND.TEXT;
 
-  candidateSelect.append(el('option', { text: '（未選択）', attrs: { value: '' } }));
-  state.candidates.forEach((candidate, index) => {
-    candidateSelect.append(el('option', { text: candidateLabel(candidate), attrs: { value: String(index) } }));
-  });
-  if (Number.isInteger(init.candidateIndex) && init.candidateIndex >= 0) {
-    candidateSelect.value = String(init.candidateIndex);
-  } else if (init.locator) {
-    candidateSelect.append(el('option', {
-      text: `（現在のページに見つかりません）${init.locator.elementId || init.locator.name || ''}`,
-      attrs: { value: 'keep' },
-    }));
-    candidateSelect.value = 'keep';
-  }
+  fillCandidateOptions(candidateSelect, init.candidateIndex, init.locator);
 
   // 値の入力欄は行ごとに 1 つ作り、表示のたびに作り直さない（入力中の値が消えないように）。
   const valueInput = el('input', {
     className: 'value-input',
     attrs: { type: 'text', autocomplete: 'off' },
-    props: { value: init.value || '' },
   });
 
   const record = {
@@ -253,6 +256,32 @@ function addRow(init = {}) {
   state.rows.push(record);
   $('#field-rows').append(tr);
   return record;
+}
+
+/**
+ * 「対象入力欄」の選択肢を組み立てる。
+ * 候補に無い入力欄（既存項目・再スキャンで見失った項目）は「keep」として選べるようにする。
+ */
+function fillCandidateOptions(select, candidateIndex, keptLocator) {
+  clear(select);
+  select.append(el('option', { text: '（未選択）', attrs: { value: '' } }));
+  state.candidates.forEach((candidate, index) => {
+    select.append(el('option', { text: candidateLabel(candidate), attrs: { value: String(index) } }));
+  });
+
+  if (Number.isInteger(candidateIndex) && candidateIndex >= 0) {
+    select.value = String(candidateIndex);
+    return;
+  }
+  if (!keptLocator) {
+    select.value = '';
+    return;
+  }
+  select.append(el('option', {
+    text: `（現在のページに見つかりません）${keptLocator.elementId || keptLocator.name || ''}`,
+    attrs: { value: 'keep' },
+  }));
+  select.value = 'keep';
 }
 
 function resolveLocator(record) {
@@ -315,7 +344,8 @@ async function save() {
     return;
   }
 
-  const fields = [];
+  // 保存する項目と、それを入力した行の対応。保存後に項目 ID を行へ書き戻すために持つ。
+  const saved = [];
   const sharedValues = {};
   const accountValues = {};
   const usedCandidates = new Set();
@@ -346,8 +376,9 @@ async function save() {
       kind: row.kindSelect.value,
       locator,
     });
+    // 保存済みの項目は ID を保つ。ID が変わると登録済みの値が引き継がれない。
     if (row.fieldId) field.id = row.fieldId;
-    fields.push(field);
+    saved.push({ row, field });
 
     const value = row.valueInput.value;
     if (!state.service && value) {
@@ -356,22 +387,21 @@ async function save() {
     }
   }
 
-  if (!fields.length) {
+  if (!saved.length) {
     setStatus($('#save-status'), '使用する項目を 1 つ以上選択してください。', 'error');
     return;
   }
+  const fields = saved.map((entry) => entry.field);
 
   let service;
   if (state.service) {
     // 区分（共通 / アカウント）を変えた項目は、登録済みの値を新しい区分側へ移す。
-    for (const row of state.rows) {
-      if (!row.fieldId || !row.useInput.checked) continue;
-      const original = state.service.fields.find((field) => field.id === row.fieldId);
+    for (const { row, field } of saved) {
+      const original = state.service.fields.find((entry) => entry.id === field.id);
       if (original) changeFieldScope(state.service, original, row.scopeSelect.value);
     }
     service = { ...state.service, name, note: $('#service-note').value.trim(), fields };
-    const alreadyMatches = service.matchRules.some((existing) => matchesSameTarget(existing, rule));
-    if (!alreadyMatches) service.matchRules = service.matchRules.concat(rule);
+    if (needsRule(service.matchRules, rule)) service.matchRules = service.matchRules.concat(rule);
   } else {
     service = createService(name);
     service.note = $('#service-note').value.trim();
@@ -390,6 +420,8 @@ async function save() {
     state.serviceId = result.serviceId;
     const fresh = await request(MSG.SERVICE_GET, { serviceId: result.serviceId });
     state.service = fresh.service;
+    // 続けて保存し直しても同じ項目として扱われるよう、保存した項目 ID を行へ戻す。
+    for (const { row, field } of saved) row.fieldId = field.id;
     // 保存後は画面上に認証情報を残さない。
     for (const row of state.rows) row.valueInput.value = '';
     $('#values-block').classList.add('hidden');
@@ -400,13 +432,25 @@ async function save() {
   }
 }
 
-function matchesSameTarget(existingRule, rule) {
+/**
+ * URL 条件を追加する必要があるか。
+ *
+ * 条件欄は現在のページの URL で初期表示される。利用者が触っていなければ、
+ * 既存条件が現在のページに一致する時点で条件は足さなくてよい。
+ * 利用者が条件欄を書き換えた場合は、同じ条件が無い限り追加する。
+ */
+function needsRule(existingRules, rule) {
   const url = parseUrl(state.url);
-  if (url && ruleMatches(existingRule, url)) return true;
-  return existingRule.origin === rule.origin
-    && existingRule.originMode === rule.originMode
-    && existingRule.pathname === rule.pathname
-    && existingRule.pathnameMode === rule.pathnameMode;
+  const asSuggested = sameTarget(rule, suggestRuleFromUrl(state.url));
+  return !existingRules.some((existing) => sameTarget(existing, rule)
+    || (asSuggested && url && ruleMatches(existing, url)));
+}
+
+function sameTarget(a, b) {
+  return a.origin === b.origin
+    && a.originMode === b.originMode
+    && a.pathname === b.pathname
+    && a.pathnameMode === b.pathnameMode;
 }
 
 // --- イベント ---------------------------------------------------------------
@@ -433,16 +477,27 @@ $('#btn-add-field').addEventListener('click', () => {
 $('#btn-rescan').addEventListener('click', async () => {
   try {
     const scan = await request(MSG.PAGE_SCAN, { tabId: state.tabId });
-    state.candidates = scan.candidates || [];
+    // 候補を差し替える前に、各行が今どの入力欄を指しているかを控える。
+    const previousLocators = state.rows.map((row) => resolveLocator(row));
+    state.candidates = Array.isArray(scan.candidates) ? scan.candidates : [];
     $('#no-candidates').classList.toggle('hidden', state.candidates.length > 0);
-    renderRows();
+    applyRescan(previousLocators);
     setStatus($('#save-status'), 'ページを再スキャンしました。', 'ok');
   } catch (error) {
     setStatus($('#save-status'), error.message, 'error');
   }
 });
 
-$('#btn-save').addEventListener('click', save);
+// 保存中はボタンを止める。二度押しでサービスが二重に登録されるのを防ぐ。
+$('#btn-save').addEventListener('click', async () => {
+  const button = $('#btn-save');
+  button.disabled = true;
+  try {
+    await save();
+  } finally {
+    button.disabled = false;
+  }
+});
 $('#btn-open-options').addEventListener('click', () => chrome.runtime.openOptionsPage());
 
 boot().catch((error) => {
