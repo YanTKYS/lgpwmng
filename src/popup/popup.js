@@ -52,8 +52,17 @@ async function showMain() {
     return;
   }
   try {
-    const result = await request(MSG.SERVICE_MATCH, { url: state.url });
+    const result = await request(MSG.SERVICE_MATCH, { url: state.url, tabId: state.tabId });
     state.services = result.services;
+    if (result.url) {
+      // background 側で確定した URL を採用する。
+      state.url = result.url;
+      const resolved = parseUrl(state.url);
+      if (resolved) $('#page-location').textContent = `${resolved.hostname}${resolved.pathname}`;
+    }
+    if (result.migratedCount) {
+      setStatus($('#fill-status'), 'URL条件を現在のページに合わせて更新しました。', 'ok');
+    }
   } catch (error) {
     state.services = [];
     setStatus($('#fill-status'), error.message, 'error');

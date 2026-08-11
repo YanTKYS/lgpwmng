@@ -6,7 +6,7 @@
  * 別サービスとして登録できるようにする。
  */
 
-import { ORIGIN_MODE, PATHNAME_MODE, createMatchRule } from './model.js';
+import { ORIGIN_MODE, PATHNAME_MODE, createMatchRule, isPendingRule } from './model.js';
 
 /** @param {string} rawUrl @returns {URL|null} */
 export function parseUrl(rawUrl) {
@@ -69,6 +69,62 @@ export function serviceMatchesUrl(service, rawUrl) {
   return service.matchRules.some((rule) => ruleMatches(rule, url));
 }
 
+// --- protocol 未確定（schemaVersion 1）条件の移行 -----------------------------
+
+/**
+ * protocol 未確定の旧条件が、実際に開いているページに該当するか。
+ * hostname と pathname のみで判定する（protocol は推測しない）。
+ */
+export function legacyRuleAppliesTo(rule, url) {
+  if (!isPendingRule(rule)) return false;
+  const host = url.hostname.toLowerCase();
+  const base = rule.legacy.hostname;
+  const hostOk = rule.legacy.hostnameMode === ORIGIN_MODE.SUFFIX
+    ? host === base || host.endsWith(`.${base}`)
+    : host === base;
+  return hostOk && pathMatches(rule, url);
+}
+
+/**
+ * 実際に開いているページの origin を採用して、旧条件を origin 形式へ確定させる。
+ * protocol とポートはページの値をそのまま用いる。
+ * サブドメイン一致の旧条件は、元のホスト名を基準にしたまま suffix として引き継ぐ。
+ */
+export function migrateLegacyRule(rule, url) {
+  const suffix = rule.legacy.hostnameMode === ORIGIN_MODE.SUFFIX;
+  const port = url.port ? `:${url.port}` : '';
+  const migrated = {
+    id: rule.id,
+    origin: suffix ? `${url.protocol}//${rule.legacy.hostname}${port}` : url.origin,
+    originMode: suffix ? ORIGIN_MODE.SUFFIX : ORIGIN_MODE.EXACT,
+    pathname: rule.pathname,
+    pathnameMode: rule.pathnameMode,
+  };
+  return migrated;
+}
+
+/**
+ * Vault 内の protocol 未確定条件のうち、現在のページに該当するものを確定させる。
+ * 該当しない条件は書き換えない。
+ *
+ * @returns {{changed: boolean, migrated: Array<{serviceId: string, serviceName: string, origin: string}>}}
+ */
+export function migrateLegacyRulesForUrl(vault, rawUrl) {
+  const url = parseUrl(rawUrl);
+  const migrated = [];
+  if (!url) return { changed: false, migrated };
+
+  for (const service of vault.services) {
+    service.matchRules = service.matchRules.map((rule) => {
+      if (!legacyRuleAppliesTo(rule, url)) return rule;
+      const next = migrateLegacyRule(rule, url);
+      migrated.push({ serviceId: service.id, serviceName: service.name, origin: next.origin });
+      return next;
+    });
+  }
+  return { changed: migrated.length > 0, migrated };
+}
+
 /**
  * 一致の「厳密さ」。複数サービスが一致した場合の優先順位に使う。
  * exact 指定・長い path ほど優先される。
@@ -114,6 +170,13 @@ export function suggestRuleFromUrl(rawUrl) {
 
 /** ルールを人間可読な 1 行表記にする。 */
 export function describeRule(rule) {
+  if (isPendingRule(rule)) {
+    const host = rule.legacy.hostnameMode === ORIGIN_MODE.SUFFIX
+      ? `*.${rule.legacy.hostname}`
+      : rule.legacy.hostname;
+    const path = rule.pathnameMode === PATHNAME_MODE.ANY ? '' : normalizePath(rule.pathname);
+    return `${host}${path}（プロトコル未確定）`;
+  }
   const origin = rule.originMode === ORIGIN_MODE.SUFFIX
     ? rule.origin.replace('://', '://*.')
     : rule.origin;
