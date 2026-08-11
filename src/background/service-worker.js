@@ -4,7 +4,7 @@
  */
 
 import { MSG } from '../lib/messages.js';
-import { findMatchingServices } from '../lib/match.js';
+import { findMatchingServices, serviceMatchesUrl } from '../lib/match.js';
 import {
   ACCOUNT_ROLE,
   buildFillValues,
@@ -149,6 +149,9 @@ async function scanPage(tabId) {
 
 /**
  * 指定アカウントの値を対象タブへ入力する。ログインボタンは押下しない。
+ *
+ * popup を開いた時点の判定結果には依存せず、入力の直前に現在のタブ URL を
+ * 取得して照合する。さらにページ側でも location を再確認する（二重確認）。
  */
 async function runFill({ tabId, serviceId, accountId, confirmAdmin }) {
   const vault = await getVault();
@@ -159,16 +162,41 @@ async function runFill({ tabId, serviceId, accountId, confirmAdmin }) {
   if (account.role === ACCOUNT_ROLE.ADMIN && confirmAdmin !== true) {
     throw new Error('管理者アカウントの使用が確認されていません。');
   }
+  await assertTabMatchesService(tabId, service);
+
   const entries = buildFillValues(service, account);
   if (!entries.length) throw new Error('入力できる値が登録されていません。');
 
-  const result = await runPageAgent(tabId, 'fill', { entries });
+  const result = await runPageAgent(tabId, 'fill', { entries, matchRules: service.matchRules });
+  if (result.error === 'url-mismatch') {
+    throw new Error(`入力を中止しました。現在のページは「${service.name}」の登録URLと一致しません。`);
+  }
   return {
     serviceName: service.name,
     accountName: account.name,
     role: account.role,
     results: result.results || [],
   };
+}
+
+/**
+ * 入力直前に現在のタブ URL がサービスの条件に一致するか確認する。
+ * URL を取得できない場合も入力しない（fail closed）。
+ */
+async function assertTabMatchesService(tabId, service) {
+  if (!Number.isInteger(tabId)) throw new Error('対象タブを特定できません。');
+  let tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch {
+    throw new Error('対象タブを確認できませんでした。ログイン画面を開き直してください。');
+  }
+  if (!tab || !tab.url) {
+    throw new Error('対象タブのURLを確認できませんでした。ログイン画面で拡張アイコンから操作してください。');
+  }
+  if (!serviceMatchesUrl(service, tab.url)) {
+    throw new Error(`入力を中止しました。現在のページは「${service.name}」の登録URLと一致しません。`);
+  }
 }
 
 async function runPageAgent(tabId, action, payload) {

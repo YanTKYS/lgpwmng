@@ -40,6 +40,12 @@ export function pageAgent(action, payload) {
   }
 
   if (action === 'fill') {
+    // 入力の直前に、実行中のページ自身の URL が登録条件に一致するか確認する。
+    // background 側の確認とページ遷移が競合しても、ここで確実に中止できる。
+    if (!urlMatchesRules(payload.matchRules)) {
+      return { error: 'url-mismatch', url: location.href };
+    }
+
     const used = new Set();
     const results = [];
     // ログインボタンの押下は行わない。値の入力のみを担当する。
@@ -47,6 +53,11 @@ export function pageAgent(action, payload) {
       const found = resolve(entry.locator, used);
       if (!found) {
         results.push({ fieldId: entry.fieldId, label: entry.label, status: 'not-found' });
+        continue;
+      }
+      // 秘密情報は、入力欄の特定が確実な場合のみ入力する。
+      if (found.weak && entry.kind === 'secret') {
+        results.push({ fieldId: entry.fieldId, label: entry.label, status: 'weak-skipped' });
         continue;
       }
       used.add(found.element);
@@ -65,6 +76,52 @@ export function pageAgent(action, payload) {
   }
 
   return { error: 'unknown-action' };
+
+  // --- URL の確認 -------------------------------------------------------
+  // src/lib/match.js と同じ判定を、ページ内で完結させるために持つ。
+
+  function urlMatchesRules(rules) {
+    if (!Array.isArray(rules) || rules.length === 0) return false;
+    let url;
+    try {
+      url = new URL(location.href);
+    } catch {
+      return false;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    return rules.some((rule) => originOk(rule, url) && pathOk(rule, url));
+  }
+
+  function originOk(rule, url) {
+    if (!rule || !rule.origin) return false;
+    if (rule.originMode !== 'suffix') return url.origin.toLowerCase() === rule.origin.toLowerCase();
+    let expected;
+    try {
+      expected = new URL(rule.origin);
+    } catch {
+      return false;
+    }
+    if (expected.protocol !== url.protocol || expected.port !== url.port) return false;
+    const host = url.hostname.toLowerCase();
+    const base = expected.hostname.toLowerCase();
+    return host === base || host.endsWith(`.${base}`);
+  }
+
+  function pathOk(rule, url) {
+    if (rule.pathnameMode === 'any') return true;
+    const target = trimPath(url.pathname);
+    const expected = trimPath(rule.pathname || '/');
+    if (rule.pathnameMode === 'prefix') {
+      return target === expected || target.startsWith(expected === '/' ? '/' : `${expected}/`);
+    }
+    return target === expected;
+  }
+
+  function trimPath(pathname) {
+    if (!pathname) return '/';
+    const trimmed = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+    return trimmed === '' ? '/' : trimmed;
+  }
 
   // --- 要素収集 ---------------------------------------------------------
 

@@ -1,10 +1,12 @@
 /**
  * URL からサービスを判定する処理。
- * ドメイン単位ではなく hostname + pathname で判定し、
- * 同一ドメイン配下でも path 違いを別サービスとして扱えるようにする。
+ *
+ * 判定は origin（プロトコル + ホスト名 + ポート）と pathname で行う。
+ * http と https は別のものとして扱い、同一ドメイン配下でも path 違いを
+ * 別サービスとして登録できるようにする。
  */
 
-import { HOSTNAME_MODE, PATHNAME_MODE, createMatchRule } from './model.js';
+import { ORIGIN_MODE, PATHNAME_MODE, createMatchRule } from './model.js';
 
 /** @param {string} rawUrl @returns {URL|null} */
 export function parseUrl(rawUrl) {
@@ -23,19 +25,27 @@ function normalizePath(pathname) {
   return trimmed === '' ? '/' : trimmed;
 }
 
-function hostMatches(rule, hostname) {
-  const target = hostname.toLowerCase();
-  const expected = (rule.hostname || '').toLowerCase().replace(/^\.+/, '');
-  if (!expected) return false;
-  if (rule.hostnameMode === HOSTNAME_MODE.SUFFIX) {
-    return target === expected || target.endsWith(`.${expected}`);
+function originMatches(rule, url) {
+  if (!rule.origin) return false;
+  if (rule.originMode !== ORIGIN_MODE.SUFFIX) {
+    return url.origin.toLowerCase() === rule.origin.toLowerCase();
   }
-  return target === expected;
+  // サブドメイン一致。プロトコルとポートは一致していなければならない。
+  let expected;
+  try {
+    expected = new URL(rule.origin);
+  } catch {
+    return false;
+  }
+  if (expected.protocol !== url.protocol || expected.port !== url.port) return false;
+  const host = url.hostname.toLowerCase();
+  const base = expected.hostname.toLowerCase();
+  return host === base || host.endsWith(`.${base}`);
 }
 
-function pathMatches(rule, pathname) {
+function pathMatches(rule, url) {
   if (rule.pathnameMode === PATHNAME_MODE.ANY) return true;
-  const target = normalizePath(pathname);
+  const target = normalizePath(url.pathname);
   const expected = normalizePath(rule.pathname || '/');
   if (rule.pathnameMode === PATHNAME_MODE.PREFIX) {
     return target === expected || target.startsWith(expected === '/' ? '/' : `${expected}/`);
@@ -45,7 +55,18 @@ function pathMatches(rule, pathname) {
 
 /** ルール単体の一致判定。 */
 export function ruleMatches(rule, url) {
-  return hostMatches(rule, url.hostname) && pathMatches(rule, url.pathname);
+  return originMatches(rule, url) && pathMatches(rule, url);
+}
+
+/**
+ * サービスが URL に一致するか。入力直前の再確認にも利用する。
+ * @param {{matchRules: Array}} service
+ * @param {string} rawUrl
+ */
+export function serviceMatchesUrl(service, rawUrl) {
+  const url = parseUrl(rawUrl);
+  if (!url) return false;
+  return service.matchRules.some((rule) => ruleMatches(rule, url));
 }
 
 /**
@@ -53,8 +74,7 @@ export function ruleMatches(rule, url) {
  * exact 指定・長い path ほど優先される。
  */
 function ruleScore(rule) {
-  let score = 0;
-  score += rule.hostnameMode === HOSTNAME_MODE.EXACT ? 100 : 40;
+  let score = rule.originMode === ORIGIN_MODE.EXACT ? 100 : 40;
   if (rule.pathnameMode === PATHNAME_MODE.EXACT) score += 100 + normalizePath(rule.pathname).length;
   else if (rule.pathnameMode === PATHNAME_MODE.PREFIX) score += 50 + normalizePath(rule.pathname).length;
   return score;
@@ -85,8 +105,8 @@ export function suggestRuleFromUrl(rawUrl) {
   const url = parseUrl(rawUrl);
   if (!url) return createMatchRule();
   return createMatchRule({
-    hostname: url.hostname,
-    hostnameMode: HOSTNAME_MODE.EXACT,
+    origin: url.origin,
+    originMode: ORIGIN_MODE.EXACT,
     pathname: normalizePath(url.pathname),
     pathnameMode: PATHNAME_MODE.EXACT,
   });
@@ -94,8 +114,10 @@ export function suggestRuleFromUrl(rawUrl) {
 
 /** ルールを人間可読な 1 行表記にする。 */
 export function describeRule(rule) {
-  const host = rule.hostnameMode === HOSTNAME_MODE.SUFFIX ? `*.${rule.hostname}` : rule.hostname;
-  if (rule.pathnameMode === PATHNAME_MODE.ANY) return `${host}（パス問わず）`;
+  const origin = rule.originMode === ORIGIN_MODE.SUFFIX
+    ? rule.origin.replace('://', '://*.')
+    : rule.origin;
+  if (rule.pathnameMode === PATHNAME_MODE.ANY) return `${origin}（パス問わず）`;
   const path = normalizePath(rule.pathname);
-  return rule.pathnameMode === PATHNAME_MODE.PREFIX ? `${host}${path}/*` : `${host}${path}`;
+  return rule.pathnameMode === PATHNAME_MODE.PREFIX ? `${origin}${path}/*` : `${origin}${path}`;
 }

@@ -37,10 +37,10 @@
         </div>
         <div class="grid-2">
           <div>
-            <div class="field-label">ホスト名</div>
+            <div class="field-label">オリジン（プロトコル + ホスト名 + ポート）</div>
             <div class="row">
-              <input type="text" id="rule-hostname">
-              <select id="rule-hostname-mode" class="mode">
+              <input type="text" id="rule-origin" placeholder="https://example.asp.lgwan.jp">
+              <select id="rule-origin-mode" class="mode">
                 <option value="exact">完全一致</option>
                 <option value="suffix">サブドメイン含む</option>
               </select>

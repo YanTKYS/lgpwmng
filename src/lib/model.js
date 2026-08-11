@@ -4,19 +4,20 @@
  * Vault
  *  └─ services[]
  *       ├─ id / name / note
- *       ├─ matchRules[]   … URL 判定条件（hostname + pathname）
+ *       ├─ matchRules[]   … URL 判定条件（origin + pathname）
  *       ├─ fields[]       … 任意のログイン項目定義（ID/パスワード固定ではない）
  *       ├─ sharedValues{} … サービス共通値（自治体コード等）
  *       └─ accounts[]     … 複数アカウント（通常 / 管理者）
  */
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const FIELD_SCOPE = { SHARED: 'shared', ACCOUNT: 'account' };
 export const FIELD_KIND = { TEXT: 'text', SECRET: 'secret' };
 export const ACCOUNT_ROLE = { NORMAL: 'normal', ADMIN: 'admin' };
 
-export const HOSTNAME_MODE = { EXACT: 'exact', SUFFIX: 'suffix' };
+/** origin = プロトコル + ホスト名 + ポート。http と https は別のものとして扱う。 */
+export const ORIGIN_MODE = { EXACT: 'exact', SUFFIX: 'suffix' };
 export const PATHNAME_MODE = { EXACT: 'exact', PREFIX: 'prefix', ANY: 'any' };
 
 /** @returns {string} 衝突しない ID */
@@ -47,13 +48,43 @@ export function createService(name = '') {
 }
 
 export function createMatchRule(partial = {}) {
+  const legacy = migrateLegacyRule(partial);
   return {
     id: newId('rule'),
-    hostname: partial.hostname || '',
-    hostnameMode: partial.hostnameMode || HOSTNAME_MODE.EXACT,
+    origin: normalizeOrigin(partial.origin || legacy.origin),
+    originMode: (partial.originMode || legacy.originMode) === ORIGIN_MODE.SUFFIX
+      ? ORIGIN_MODE.SUFFIX
+      : ORIGIN_MODE.EXACT,
     pathname: partial.pathname || '',
     pathnameMode: partial.pathnameMode || PATHNAME_MODE.EXACT,
   };
+}
+
+/**
+ * schemaVersion 1（hostname + pathname）で保存された条件を origin 形式へ変換する。
+ * プロトコルの記録がないため https として扱う。
+ */
+function migrateLegacyRule(partial) {
+  if (!partial || typeof partial.hostname !== 'string' || !partial.hostname) return {};
+  return {
+    origin: `https://${partial.hostname}`,
+    originMode: partial.hostnameMode === ORIGIN_MODE.SUFFIX ? ORIGIN_MODE.SUFFIX : ORIGIN_MODE.EXACT,
+  };
+}
+
+/**
+ * 入力された文字列を origin 表記へ正規化する。
+ * プロトコル省略時は https を補う（http は明示的な指定を必要とする）。
+ */
+export function normalizeOrigin(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const withScheme = /^https?:\/\//i.test(raw) ? raw : `https://${raw.replace(/^\/+/, '')}`;
+  try {
+    return new URL(withScheme).origin;
+  } catch {
+    return '';
+  }
 }
 
 export function createField(partial = {}) {
