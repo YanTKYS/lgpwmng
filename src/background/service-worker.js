@@ -183,42 +183,47 @@ async function readTabUrl(tabId) {
  * 候補ごとに、後で同じフレームを再特定するための frame 記述子を付与する。
  */
 async function scanPage(tabId) {
-  const frameResults = await runPageAgentAllFrames(tabId, 'scan', {});
+  const frameResults = await runInAllFrames(tabId, 'scan', {});
   if (!frameResults.length) {
     throw new Error('ページを走査できませんでした。対象のログイン画面を開いた状態で、拡張アイコンから操作してください。');
   }
 
-  const topEntry = frameResults.find((entry) => entry.frameId === 0);
-
-  // 見つかったフレームそれぞれが報告する子フレーム数の合計（+ トップ自身）と、
-  // 実際に走査できたフレーム数を比べ、アクセスできなかったフレームがありそうかを判断する。
-  // 厳密な保証ではなく、あくまで利用者への状況表示のための目安。
-  let expectedFrameCount = 1;
-  for (const entry of frameResults) {
-    const count = entry.result && Number.isInteger(entry.result.childFrameCount) ? entry.result.childFrameCount : 0;
-    expectedFrameCount += count;
-  }
-  const partial = frameResults.length < expectedFrameCount;
-
   const candidates = [];
   for (const entry of frameResults) {
-    if (!entry.result || !Array.isArray(entry.result.candidates)) continue;
-    const isTop = entry.frameId === 0;
-    const frame = frameDescriptorFromUrl(entry.result.url, entry.result.frameName, isTop);
-    for (const candidate of entry.result.candidates) {
+    const frame = frameDescriptorFromUrl(entry.result.url, entry.result.frameName, entry.frameId === 0);
+    for (const candidate of asArray(entry.result.candidates)) {
       candidates.push({ ...candidate, frame });
     }
   }
 
+  const top = frameResults.find((entry) => entry.frameId === 0);
   const result = {
-    url: topEntry && topEntry.result ? topEntry.result.url : null,
-    title: topEntry && topEntry.result ? topEntry.result.title : '',
+    url: top ? top.result.url : null,
+    title: top ? top.result.title : '',
     candidates,
-    partial,
+    partial: hasUnreachableFrames(frameResults),
   };
   // 走査結果には入力値を含めない（page-agent 側で値そのものは返していない）。
   await chrome.storage.session.set({ [SCAN_KEY]: { ...result, tabId, scannedAt: Date.now() } });
   return result;
+}
+
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+/**
+ * 走査できなかったフレームがありそうか。
+ *
+ * 各フレームが報告した子フレーム数の合計（+ トップ自身）と、実際に結果を返した
+ * フレーム数を比べる。厳密な保証ではなく、利用者への状況表示のための目安。
+ */
+function hasUnreachableFrames(frameResults) {
+  const expected = frameResults.reduce(
+    (total, entry) => total + (Number(entry.result.childFrameCount) || 0),
+    1,
+  );
+  return frameResults.length < expected;
 }
 
 /** 強調表示。対象入力欄が属するフレームを再特定してから、そのフレーム内でだけ実行する。 */
@@ -233,7 +238,7 @@ async function runHighlight({ tabId, locator, frame }) {
     if (frameIds.length > 1) return { ok: false, reason: 'frame-ambiguous' };
     frameId = frameIds[0];
   }
-  return runPageAgentInFrame(tabId, frameId, 'highlight', { locator });
+  return runInFrame(tabId, frameId, 'highlight', { locator });
 }
 
 /**
@@ -288,7 +293,7 @@ async function fillAcrossFrames(tabId, entries, matchRules, serviceName) {
 
   const results = [];
   if (topEntries.length) {
-    const topResult = await runPageAgentInFrame(tabId, 0, 'fill', { entries: topEntries, matchRules });
+    const topResult = await runInFrame(tabId, 0, 'fill', { entries: topEntries, matchRules });
     if (topResult && topResult.error === 'url-mismatch') {
       throw new Error(`入力を中止しました。現在のページは「${serviceName}」の登録URLと一致しません。`);
     }
@@ -329,7 +334,7 @@ async function fillFrameGroup(tabId, frames, { descriptor, entries }) {
   if (!targets.length) return skipped;
 
   const frameCheck = { origin: descriptor.origin, pathname: descriptor.pathname };
-  const frameResult = await runPageAgentInFrameSafely(tabId, frameIds[0], 'fill', { entries: targets, frameCheck });
+  const frameResult = await runInFrameSafely(tabId, frameIds[0], 'fill', { entries: targets, frameCheck });
   if (frameResult && frameResult.error === 'url-mismatch') {
     // 対象フレームがその後に遷移した等で、フレーム自身の URL 再確認に失敗した。
     return skipped.concat(targets.map((entry) => statusFor(entry, 'not-found')));
@@ -373,7 +378,7 @@ function forceWeak(results) {
  */
 async function probeFrames(tabId) {
   try {
-    return await runPageAgentAllFrames(tabId, 'probe', {});
+    return await runInAllFrames(tabId, 'probe', {});
   } catch {
     return null;
   }
@@ -416,21 +421,22 @@ async function assertTabMatchesService(tabId, service) {
 }
 
 /**
- * タブ内の全フレーム（トップ + アクセスできる frame / iframe）で pageAgent を実行する。
+ * 対象ページで pageAgent を実行する。
+ *
  * activeTab 権限は、拡張アイコンが操作されたタブについて、同一オリジンか
  * どうかによらずフレームへのアクセスも許可する。別オリジンのフレームに
- * アクセスできない場合、chrome.scripting はそのフレームの結果を返さない
- * （＝ frameResults に含まれない）。無理な回避策は取らず、呼び出し側で
- * 「一部のフレームを確認できなかった」ことの目安として扱う。
+ * アクセスできない場合、chrome.scripting はそのフレームの結果を返さない。
+ * 無理な回避策は取らず、結果を返したフレームだけを返す。
  *
- * @returns {Array<{frameId: number, result: object}>}
+ * @param {{allFrames: true}|{frameIds: number[]}} where 実行するフレームの指定
+ * @returns {Promise<Array<{frameId: number, result: object}>>}
  */
-async function runPageAgentAllFrames(tabId, action, payload) {
+async function runPageAgent(tabId, where, action, payload) {
   if (!Number.isInteger(tabId)) throw new Error('対象タブを特定できません。');
   let injections;
   try {
     injections = await chrome.scripting.executeScript({
-      target: { tabId, allFrames: true },
+      target: { tabId, ...where },
       world: 'ISOLATED',
       func: pageAgent,
       args: [action, payload],
@@ -443,30 +449,22 @@ async function runPageAgentAllFrames(tabId, action, payload) {
     .map((injection) => ({ frameId: injection.frameId, result: injection.result }));
 }
 
-/** 特定の 1 フレームでのみ pageAgent を実行する。 */
-async function runPageAgentInFrame(tabId, frameId, action, payload) {
-  if (!Number.isInteger(tabId)) throw new Error('対象タブを特定できません。');
-  let injection;
-  try {
-    [injection] = await chrome.scripting.executeScript({
-      target: { tabId, frameIds: [frameId] },
-      world: 'ISOLATED',
-      func: pageAgent,
-      args: [action, payload],
-    });
-  } catch {
-    throw new Error('このページへアクセスできません。対象のログイン画面を開いた状態で、拡張アイコンから操作してください。');
-  }
-  if (!injection || injection.result === undefined || injection.result === null) {
-    throw new Error('ページの処理結果を取得できませんでした。');
-  }
-  return injection.result;
+/** タブ内の全フレーム（トップ + アクセスできる frame / iframe）で実行する。 */
+function runInAllFrames(tabId, action, payload) {
+  return runPageAgent(tabId, { allFrames: true }, action, payload);
 }
 
-/** runPageAgentInFrame の例外を握りつぶす版。フレーム単位の失敗で全体の入力を止めないために使う。 */
-async function runPageAgentInFrameSafely(tabId, frameId, action, payload) {
+/** 特定の 1 フレームでのみ実行する。結果を取得できなければ例外。 */
+async function runInFrame(tabId, frameId, action, payload) {
+  const [entry] = await runPageAgent(tabId, { frameIds: [frameId] }, action, payload);
+  if (!entry) throw new Error('ページの処理結果を取得できませんでした。');
+  return entry.result;
+}
+
+/** runInFrame の例外を握りつぶす版。フレーム単位の失敗で全体の入力を止めないために使う。 */
+async function runInFrameSafely(tabId, frameId, action, payload) {
   try {
-    return await runPageAgentInFrame(tabId, frameId, action, payload);
+    return await runInFrame(tabId, frameId, action, payload);
   } catch {
     return null;
   }

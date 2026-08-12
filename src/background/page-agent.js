@@ -260,28 +260,35 @@ export function pageAgent(action, payload) {
     };
   }
 
+  /**
+   * 入力欄に対応するラベル文字列を、確実な手掛かりから順に探す。
+   *
+   * 中身のある文字列だけを採用する。`<label><input></label>` のように文字を
+   * 持たないラベルを採用してしまうと、表のセルや直前の要素といった後続の
+   * 手掛かりを見に行かなくなり、項目名を判定できなくなる。
+   */
   function findLabelText(element) {
     const texts = [];
-    if (element.labels && element.labels.length) {
-      for (const label of element.labels) texts.push(label.textContent || '');
-    }
+    const add = (text) => {
+      const trimmed = (text || '').replace(/\s+/g, ' ').trim();
+      if (trimmed) texts.push(trimmed);
+    };
+
+    for (const label of element.labels || []) add(label.textContent);
     const labelledBy = element.getAttribute('aria-labelledby');
     if (labelledBy) {
       for (const id of labelledBy.split(/\s+/)) {
         const node = document.getElementById(id);
-        if (node) texts.push(node.textContent || '');
+        if (node) add(node.textContent);
       }
     }
     if (!texts.length) {
       const cell = element.closest('td, th');
-      const previousCell = cell && cell.previousElementSibling;
-      if (previousCell) texts.push(previousCell.textContent || '');
+      if (cell && cell.previousElementSibling) add(cell.previousElementSibling.textContent);
     }
-    if (!texts.length && element.previousElementSibling) {
-      texts.push(element.previousElementSibling.textContent || '');
-    }
-    if (!texts.length && element.title) texts.push(element.title);
-    return texts.join(' ').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (!texts.length && element.previousElementSibling) add(element.previousElementSibling.textContent);
+    if (!texts.length) add(element.title);
+    return texts.join(' ').slice(0, 80);
   }
 
   function buildCssPath(element, scan) {
@@ -400,22 +407,31 @@ export function pageAgent(action, payload) {
 
   // --- 値の入力 ---------------------------------------------------------
 
+  /**
+   * 入力欄へ値を反映する。
+   *
+   * 入力欄の種類ごとに、ページへ変更を伝える方法が異なる。
+   * チェックボックス / ラジオは click() 自体が input / change を発火するため、
+   * 合成イベントを重ねない。重ねると、onchange で入力チェックを行う業務システムで
+   * 検証が二重に走ってしまう（onblur の二重発火と同じ問題）。
+   */
   function applyValue(element, value) {
-    const tag = element.tagName.toLowerCase();
     element.focus();
-    if (tag === 'select') {
-      selectOption(element, value);
-    } else if (element.type === 'checkbox' || element.type === 'radio') {
-      const checked = value === element.value || value === 'true' || value === '1' || value === 'on';
-      if (element.checked !== checked) element.click();
-    } else {
-      setNativeValue(element, value);
+    try {
+      if (element.tagName.toLowerCase() === 'select') {
+        selectOption(element, value);
+        notifyChanged(element);
+      } else if (element.type === 'checkbox' || element.type === 'radio') {
+        applyChecked(element, value);
+      } else {
+        setNativeValue(element, value);
+        notifyChanged(element);
+      }
+    } finally {
+      // 入力できなかった場合もフォーカスは戻す。
+      // blur() 自体が blur / focusout を発火するため、合成イベントは送らない。
+      element.blur();
     }
-    dispatch(element, 'input');
-    dispatch(element, 'change');
-    // blur() 自体が blur / focusout を発火する。ここで合成 blur を重ねて送ると、
-    // 入力チェックを onblur で行う業務システムで検証が二重に走ってしまう。
-    element.blur();
   }
 
   function selectOption(element, value) {
@@ -424,6 +440,19 @@ export function pageAgent(action, payload) {
       || options.find((option) => (option.textContent || '').trim() === value);
     if (!target) throw new Error('option not found');
     element.value = target.value;
+  }
+
+  /**
+   * チェックボックス / ラジオの状態を合わせる。
+   *
+   * ラジオはクリックしても解除できないため、値が一致しない場合はこの入力欄では
+   * 登録値を表現できない。黙って何もせず「入力しました」と報告すると、
+   * 区分が変わっていないことに気付けないため、入力できなかったものとして扱う。
+   */
+  function applyChecked(element, value) {
+    const shouldCheck = value === element.value || value === 'true' || value === '1' || value === 'on';
+    if (element.type === 'radio' && !shouldCheck) throw new Error('radio value mismatch');
+    if (element.checked !== shouldCheck) element.click();
   }
 
   function setNativeValue(element, value) {
@@ -435,11 +464,10 @@ export function pageAgent(action, payload) {
     else element.value = value;
   }
 
-  function dispatch(element, type) {
-    const event = type === 'input'
-      ? new InputEvent('input', { bubbles: true, composed: true })
-      : new Event(type, { bubbles: true, composed: true });
-    element.dispatchEvent(event);
+  /** 値が変わったことをページへ伝える。 */
+  function notifyChanged(element) {
+    element.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
   }
 
   /**

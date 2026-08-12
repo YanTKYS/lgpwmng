@@ -52,10 +52,10 @@ function showPageLocation() {
 
 async function showMain() {
   showView('main');
-  const location = showPageLocation();
-  $('#btn-setup').disabled = !location || !Number.isInteger(state.tabId);
+  const pageUrl = showPageLocation();
+  $('#btn-setup').disabled = !pageUrl || !Number.isInteger(state.tabId);
 
-  if (!location) {
+  if (!pageUrl) {
     state.services = [];
     renderServices();
     return;

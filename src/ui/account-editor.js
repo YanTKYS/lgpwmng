@@ -137,12 +137,13 @@ export function renderAccountCards(container, accounts, accountFields, { onRemov
 
 /**
  * 「アカウントを追加」で使う既定名。
- * 件数だけで採番すると、削除したあとに追加したとき既存の名前と重複するため、
- * 使われていない番号まで進める。
+ * 1 から数えて、まだ使われていない最初の番号を採る。
+ * 件数から数え始めると、「標準ユーザー」1 件だけのサービスで最初の追加が
+ * 「アカウント2」になるなど、番号が実態とずれてしまう。
  */
 export function nextAccountName(accounts) {
   const used = new Set(accounts.map((account) => account.name));
-  let number = accounts.length + 1;
+  let number = 1;
   while (used.has(`アカウント${number}`)) number += 1;
   return `アカウント${number}`;
 }
@@ -220,31 +221,34 @@ export function createSaveQueue() {
  * は何もしない。
  */
 export function createAccountAutosaveTrigger({ getService, getPersistedBase, setPersistedBase, saveQueue, sendSave, onStatus }) {
-  let outstanding = 0;
+  // 実行待ちを含む保存の件数。すべて終わってから結果を表示する。
+  let pending = 0;
   return function trigger() {
     const service = getService();
-    const baseAtTrigger = getPersistedBase();
-    if (!service || !baseAtTrigger) return;
+    if (!service || !getPersistedBase()) return;
     const targetId = service.id;
-    outstanding += 1;
+    pending += 1;
     onStatus('saving');
     saveQueue.enqueue(async () => {
       // 実行時点の最新の状態を読み直す（間に明示保存や他の変更が挟まっていれば反映するため）。
       const base = getPersistedBase();
       const live = getService();
-      if (!base || base.id !== targetId || !live || live.id !== targetId) return; // 別のサービスへ切り替わっていた場合は何もしない
+      // 別のサービスへ切り替わっていた場合は保存しない。
+      if (!base || !live || base.id !== targetId || live.id !== targetId) return false;
       const accounts = buildSafeAccountsPayload(base, live);
       await sendSave({ ...base, accounts });
       // 保存できた accounts の内容を、以後の自動保存が比較・送信する基準として反映する。
       // 「アカウント以外」の内容（サービス設定）はこの自動保存では変えていないので据え置く。
-      if (setPersistedBase) setPersistedBase({ ...base, accounts });
+      setPersistedBase({ ...base, accounts });
+      return true;
     }).then(
-      () => {
-        outstanding -= 1;
-        if (outstanding === 0) onStatus('saved');
+      (saved) => {
+        pending -= 1;
+        // 保存しなかった場合に「保存済み」とは出さない（表示だけ残らないよう消す）。
+        if (pending === 0) onStatus(saved ? 'saved' : null);
       },
       (error) => {
-        outstanding -= 1;
+        pending -= 1;
         onStatus('error', error);
       },
     );

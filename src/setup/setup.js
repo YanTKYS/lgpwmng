@@ -104,8 +104,8 @@ async function loadService() {
     // 新規サービスも下書きとして最初から用意し、この画面だけで
     // 入力項目・アカウントまで一気通貫で設定できるようにする。
     // ただしまだ一度も保存していないため、アカウントの変更もこの時点では自動保存しない。
-    const location = parseHttpUrl(state.url);
-    state.service = createService(location ? location.hostname : '');
+    const pageUrl = parseHttpUrl(state.url);
+    state.service = createService(pageUrl ? pageUrl.hostname : '');
     state.service.accounts = [createAccount({ name: '標準ユーザー' })];
     state.persisted = null;
   }
@@ -175,16 +175,13 @@ function setCandidates(scan) {
 
 function candidateLabel(candidate) {
   const locator = candidate.locator;
-  const parts = [];
   const name = locator.labelText || candidate.guessLabel || locator.placeholder || locator.ariaLabel;
-  parts.push(name ? name.slice(0, 30) : '(名称不明)');
   const attrs = [locator.tagName + (locator.type ? `[${locator.type}]` : '')];
   if (locator.elementId) attrs.push(`#${locator.elementId}`);
   if (locator.name) attrs.push(`name=${locator.name}`);
-  let label = `${parts[0]} — ${attrs.join(' ')}`;
+  const label = `${name ? name.slice(0, 30) : '(名称不明)'} — ${attrs.join(' ')}`;
   const frameHint = describeFrameDescriptor(candidate.frame);
-  if (frameHint) label += ` [フレーム: ${frameHint}]`;
-  return label;
+  return frameHint ? `${label} [フレーム: ${frameHint}]` : label;
 }
 
 /**
@@ -311,6 +308,14 @@ function defaultScope(label) {
   return SHARED_BY_DEFAULT.includes(label) ? FIELD_SCOPE.SHARED : FIELD_SCOPE.ACCOUNT;
 }
 
+/** 「確認」（強調表示）が失敗したときの案内。理由ごとに次の操作が分かる言い方にする。 */
+const HIGHLIGHT_FAILURES = {
+  'frame-ambiguous': '対象のフレームを一つに絞り込めませんでした。',
+  'frame-not-found': '対象のフレームが見つかりませんでした。再スキャンしてください。',
+  'frame-error': 'ページのフレーム構成を確認できませんでした。ログイン画面を開き直してください。',
+  default: '対象の入力欄がログイン画面上に見つかりませんでした。',
+};
+
 function addRow(init = {}) {
   const tr = fromTemplate('tpl-field-row');
   const useInput = tr.querySelector('.use');
@@ -363,12 +368,9 @@ function addRow(init = {}) {
       const result = await request(MSG.PAGE_HIGHLIGHT, { tabId: state.tabId, locator, frame });
       if (result && result.ok) {
         setStatus($('#save-status'), '対象のログイン画面で該当欄を強調表示しました。', 'ok');
-      } else if (result && result.reason === 'frame-ambiguous') {
-        setStatus($('#save-status'), '対象のフレームを一つに絞り込めませんでした。', 'error');
-      } else if (result && result.reason === 'frame-not-found') {
-        setStatus($('#save-status'), '対象のフレームが見つかりませんでした。再スキャンしてください。', 'error');
       } else {
-        setStatus($('#save-status'), '対象の入力欄がログイン画面上に見つかりませんでした。', 'error');
+        const reason = result ? result.reason : '';
+        setStatus($('#save-status'), HIGHLIGHT_FAILURES[reason] || HIGHLIGHT_FAILURES.default, 'error');
       }
     } catch (error) {
       setStatus($('#save-status'), error.message, 'error');
@@ -487,8 +489,12 @@ function collectFields({ strict }) {
   return { fields, error: '' };
 }
 
-/** 入力項目テーブルの内容をサービスへ反映し、共通値 / アカウント欄を再描画する。 */
+/**
+ * 入力項目テーブルの内容をサービスへ反映し、共通値 / アカウント欄を再描画する。
+ * サービスを読み込めていない間（読み込みに失敗した場合）は何もしない。
+ */
 function renderValues() {
+  if (!state.service) return;
   const { fields } = collectFields({ strict: false });
   state.service.fields = fields;
   const sharedFields = fields.filter((field) => field.scope === FIELD_SCOPE.SHARED);
@@ -518,6 +524,10 @@ function buildRule() {
 }
 
 async function save() {
+  if (!state.service) {
+    setStatus($('#save-status'), '設定を読み込めていません。ログイン画面を開いた状態で拡張アイコンから開き直してください。', 'error');
+    return;
+  }
   const name = $('#service-name').value.trim();
   if (!name) {
     setStatus($('#save-status'), 'サービス名を入力してください。', 'error');
