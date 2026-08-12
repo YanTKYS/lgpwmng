@@ -40,6 +40,23 @@ test('完全に曖昧な locator は secret を含め自動反映しない', () 
   ), ['']);
 });
 
+test('同名候補の片方だけに値があっても空欄側へ複製しない', () => {
+  const filled = locator({ name: 'login', indexInForm: 0 });
+  const empty = locator({ name: 'login', indexInForm: 1 });
+  assert.deepEqual(matchCapturedValues(
+    [candidate(filled), candidate(empty)],
+    [captured(filled, 'user01')],
+  ), ['user01', '']);
+});
+
+test('位置が不明な同名候補へ一つの capture 値を展開しない', () => {
+  const duplicate = locator({ name: 'login', formIndex: -1, indexInForm: -1 });
+  assert.deepEqual(matchCapturedValues(
+    [candidate(duplicate), candidate({ ...duplicate })],
+    [captured(duplicate, 'user01')],
+  ), ['', '']);
+});
+
 test('異なる frame の同名項目を混同しない', () => {
   const loc = locator({ name: 'login' });
   assert.deepEqual(matchCapturedValues(

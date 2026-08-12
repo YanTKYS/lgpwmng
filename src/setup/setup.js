@@ -162,7 +162,7 @@ async function captureInitialValues() {
     state.capturedEntries = [];
   }
   state.capturedValues = matchCapturedValues(state.candidates, state.capturedEntries);
-  if (state.capturedEntries.length) {
+  if (state.capturedValues.some((value) => value !== '')) {
     setStatus($('#save-status'), '入力済みの値を取り込みました。内容を確認してください。', 'ok');
   }
 }

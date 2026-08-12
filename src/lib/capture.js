@@ -23,6 +23,10 @@ function same(locator, other, keys) {
   return keys.every((key) => present(locator[key]) && locator[key] === other[key]);
 }
 
+function inSameFrame(left, right) {
+  return frameDescriptorKey(left.frame) === frameDescriptorKey(right.frame);
+}
+
 // 単独の name より、フォーム内位置や型を含むキーを先に使う。各検索は一意なとき
 // だけ成功するので、壊れた HTML に重複 id / name があっても先頭を採用しない。
 const MATCH_KEYS = [
@@ -58,7 +62,17 @@ export function matchCapturedValues(candidates = [], capturedEntries = []) {
       .filter((entry) => compatible(candidate, entry));
     for (const keys of MATCH_KEYS) {
       const matches = pool.filter((entry) => same(candidate.locator, entry.locator, keys));
-      if (matches.length === 1) return matches[0].value;
+      if (matches.length !== 1) continue;
+
+      // capture は空欄を返さないため、capture 側で一意なだけでは不十分。同名欄が
+      // 2 つあり片方だけ入力済みの場合、空欄側にもその値を割り当ててしまう。
+      // scan 側でもこのキーが一意なときだけ採用し、1つの値を複数候補へ展開しない。
+      const candidateMatches = candidates.filter((other) => other
+        && other.locator
+        && inSameFrame(candidate, other)
+        && compatible(other, matches[0])
+        && same(other.locator, matches[0].locator, keys));
+      if (candidateMatches.length === 1) return matches[0].value;
     }
     return '';
   });
