@@ -1,40 +1,64 @@
 /**
- * ログイン画面の現在値（capture の結果）と、走査候補（scan の candidates）を
- * 対応付ける処理。
+ * scan の候補と capture の現在値を対応付ける。
  *
- * capture は「入力欄の識別情報（locator）+ フレーム + 値」の平たいリストで届く。
- * どの candidate と同じ入力欄を指しているかは、同じフレーム内で
- * id → name → CSSセレクタの順に一致するかで判定する
- * （setup.js の対応付け全般で使っている考え方と同じ）。
+ * 値を持つ capture 側を「先に見つかった一件」で選ばないことが重要である。
+ * フレームを分離したうえで、DOM の構造情報を含む照合キーごとに検索し、そのキーが
+ * capture 結果内で一意な場合だけ値を返す。曖昧な場合は空文字にして手入力を優先する。
  */
 
 import { frameDescriptorKey } from './frame.js';
 
-const LOCATOR_HINTS = ['elementId', 'name', 'cssPath'];
+function present(value) {
+  return value !== '' && value !== null && value !== undefined;
+}
+
+function compatible(candidate, entry) {
+  const left = candidate.locator || {};
+  const right = entry.locator || {};
+  return (!present(left.tagName) || !present(right.tagName) || left.tagName === right.tagName)
+    && (!present(left.type) || !present(right.type) || left.type === right.type);
+}
+
+function same(locator, other, keys) {
+  return keys.every((key) => present(locator[key]) && locator[key] === other[key]);
+}
+
+// 単独の name より、フォーム内位置や型を含むキーを先に使う。各検索は一意なとき
+// だけ成功するので、壊れた HTML に重複 id / name があっても先頭を採用しない。
+const MATCH_KEYS = [
+  ['elementId', 'tagName', 'type', 'formIndex', 'indexInForm'],
+  ['cssPath', 'tagName', 'type'],
+  ['name', 'tagName', 'type', 'formIndex', 'indexInForm'],
+  ['tagName', 'type', 'formIndex', 'indexInForm'],
+  ['elementId'],
+  ['cssPath'],
+  ['name', 'tagName', 'type'],
+];
 
 /**
- * candidates の各要素に対応する、取得済みの現在値を返す（candidates と同じ並びの配列）。
- * 対応するものが無い、または値が取得できなかった場合は空文字。
+ * candidates と同じ並びで capture 値を返す。一意に特定できない要素は空文字。
+ * secret も通常項目も同じ fail-closed な規則で扱う。
  *
  * @param {Array<{locator: object, frame: object}>} candidates
  * @param {Array<{locator: object, frame: object, value: string}>} capturedEntries
  * @returns {string[]}
  */
-export function matchCapturedValues(candidates, capturedEntries) {
+export function matchCapturedValues(candidates = [], capturedEntries = []) {
   const byFrame = new Map();
   for (const entry of capturedEntries) {
+    if (!entry || !entry.locator || typeof entry.value !== 'string') continue;
     const key = frameDescriptorKey(entry.frame);
     if (!byFrame.has(key)) byFrame.set(key, []);
     byFrame.get(key).push(entry);
   }
 
   return candidates.map((candidate) => {
-    const pool = byFrame.get(frameDescriptorKey(candidate.frame)) || [];
-    for (const hint of LOCATOR_HINTS) {
-      const hintValue = candidate.locator[hint];
-      if (!hintValue) continue;
-      const found = pool.find((entry) => entry.locator[hint] === hintValue);
-      if (found) return found.value;
+    if (!candidate || !candidate.locator) return '';
+    const pool = (byFrame.get(frameDescriptorKey(candidate.frame)) || [])
+      .filter((entry) => compatible(candidate, entry));
+    for (const keys of MATCH_KEYS) {
+      const matches = pool.filter((entry) => same(candidate.locator, entry.locator, keys));
+      if (matches.length === 1) return matches[0].value;
     }
     return '';
   });
