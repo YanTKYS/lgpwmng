@@ -191,22 +191,27 @@ function candidateLabel(candidate) {
  * 識別情報（locator）が一致する候補を探す。frame を指定した場合は、
  * 同じフレームの候補だけを対象にする（再スキャンで frameId が変わっても、
  * 別フレームの同名項目へ誤って対応付けないため）。
+ *
+ * 既に別の行へ割り当て済みの候補（usedIndexes）は対象から外す。同じ候補が
+ * 複数の行に入ると、保存時に「同じ入力欄が複数の項目に割り当てられています」
+ * となり、手作業で直すまで保存できなくなるため。
+ *
+ * @returns {number} 候補の位置。見つからなければ -1
  */
-function matchCandidateIndex(locator, frame) {
+function matchCandidateIndex(locator, frame, usedIndexes) {
   const frameKey = frame ? frameDescriptorKey(frame) : null;
-  const inSameFrame = (candidate) => !frameKey || frameDescriptorKey(candidate.frame) === frameKey;
+  const usable = (candidate, index) => !usedIndexes.has(index)
+    && (!frameKey || frameDescriptorKey(candidate.frame) === frameKey);
 
-  const byId = state.candidates.findIndex(
-    (candidate) => inSameFrame(candidate) && locator.elementId && candidate.locator.elementId === locator.elementId,
-  );
-  if (byId >= 0) return byId;
-  const byName = state.candidates.findIndex(
-    (candidate) => inSameFrame(candidate) && locator.name && candidate.locator.name === locator.name,
-  );
-  if (byName >= 0) return byName;
-  return state.candidates.findIndex(
-    (candidate) => inSameFrame(candidate) && locator.cssPath && candidate.locator.cssPath === locator.cssPath,
-  );
+  // id → name → CSS セレクタの順に、確実な手掛かりから探す。
+  for (const hint of ['elementId', 'name', 'cssPath']) {
+    if (!locator[hint]) continue;
+    const index = state.candidates.findIndex(
+      (candidate, position) => usable(candidate, position) && candidate.locator[hint] === locator[hint],
+    );
+    if (index >= 0) return index;
+  }
+  return -1;
 }
 
 function renderRows() {
@@ -216,7 +221,7 @@ function renderRows() {
   if (state.serviceId) {
     const usedIndexes = new Set();
     for (const field of state.service.fields) {
-      const index = matchCandidateIndex(field.locator, field.frame);
+      const index = matchCandidateIndex(field.locator, field.frame, usedIndexes);
       if (index >= 0) usedIndexes.add(index);
       addRow({
         fieldId: field.id,
@@ -289,7 +294,7 @@ function applyRescan(previousLocators, previousFrames) {
   state.rows.forEach((row, position) => {
     const locator = previousLocators[position];
     const frame = previousFrames[position];
-    const index = locator ? matchCandidateIndex(locator, frame) : -1;
+    const index = locator ? matchCandidateIndex(locator, frame, usedIndexes) : -1;
     if (index >= 0) usedIndexes.add(index);
     // 再スキャンで見失った入力欄は、識別情報を保持したまま「見つかりません」と表示する。
     if (locator && index < 0) {
@@ -435,28 +440,56 @@ function resolveFrame(record) {
 // --- 値の入力欄 -------------------------------------------------------------
 
 /**
- * 「使用」がオンで表示名のある行から、下書きの項目一覧を組み立てる。
+ * 「使用」がオンの行から項目一覧を組み立てる。
  * 項目 ID は行ごとに一度決めたら変えない（値がアカウント / 共通値へ正しく紐付き続けるため）。
+ *
+ * 保存時（strict）は、表示名や対象入力欄の未入力・重複をエラーにする。
+ * 画面の描画時（strict でない）は、設定の途中でも作業を続けられるよう、
+ * まだ埋まっていない行を黙って飛ばす。
+ *
+ * @param {{strict: boolean}} options
+ * @returns {{fields: Array, error: string}} error が空文字でなければ内容に問題がある
  */
-function currentFields() {
+function collectFields({ strict }) {
   const fields = [];
+  const usedCandidates = new Set();
   for (const row of state.rows) {
     if (!row.useInput.checked) continue;
     const label = row.labelInput.value.trim();
-    if (!label) continue;
-    const locator = resolveLocator(row) || row.locator || {};
-    const frame = resolveFrame(row) || row.frame;
-    const field = createField({ label, scope: row.scopeSelect.value, kind: row.kindSelect.value, locator, frame });
+    if (!label) {
+      if (strict) return { fields, error: '使用する項目には表示名が必要です。' };
+      continue;
+    }
+    const selected = resolveLocator(row);
+    if (!selected && strict) {
+      return { fields, error: `「${label}」の対象入力欄を選択してください。` };
+    }
+    const key = row.candidateSelect.value;
+    if (strict && key !== 'keep') {
+      if (usedCandidates.has(key)) {
+        return { fields, error: '同じ入力欄が複数の項目に割り当てられています。' };
+      }
+      usedCandidates.add(key);
+    }
+    const field = createField({
+      label,
+      scope: row.scopeSelect.value,
+      kind: row.kindSelect.value,
+      // 対象入力欄が未選択の行も、区分・種別だけは値の入力欄の描画に使う。
+      locator: selected || row.locator || {},
+      frame: resolveFrame(row) || row.frame,
+    });
+    // 保存済みの項目は ID を保つ。ID が変わると登録済みの値が引き継がれない。
     if (row.fieldId) field.id = row.fieldId;
     else row.fieldId = field.id;
     fields.push(field);
   }
-  return fields;
+  return { fields, error: '' };
 }
 
 /** 入力項目テーブルの内容をサービスへ反映し、共通値 / アカウント欄を再描画する。 */
 function renderValues() {
-  const fields = currentFields();
+  const { fields } = collectFields({ strict: false });
   state.service.fields = fields;
   const sharedFields = fields.filter((field) => field.scope === FIELD_SCOPE.SHARED);
   const accountFields = fields.filter((field) => field.scope === FIELD_SCOPE.ACCOUNT);
@@ -470,13 +503,18 @@ function renderValues() {
 
 // --- 保存 -------------------------------------------------------------------
 
+/** 画面の入力内容から URL 条件を作る。整えた結果は画面へも反映する。 */
 function buildRule() {
-  return createMatchRule({
+  const rule = createMatchRule({
     origin: $('#rule-origin').value.trim(),
     originMode: $('#rule-origin-mode').value,
-    pathname: $('#rule-pathname').value.trim() || '/',
+    pathname: $('#rule-pathname').value,
     pathnameMode: $('#rule-pathname-mode').value,
   });
+  // 解釈できなかったオリジンは、入力し直せるよう打った内容のまま残す。
+  if (rule.origin) $('#rule-origin').value = rule.origin;
+  $('#rule-pathname').value = rule.pathname;
+  return rule;
 }
 
 async function save() {
@@ -491,34 +529,10 @@ async function save() {
     return;
   }
 
-  const fields = [];
-  const usedCandidates = new Set();
-  for (const row of state.rows) {
-    if (!row.useInput.checked) continue;
-    const label = row.labelInput.value.trim();
-    if (!label) {
-      setStatus($('#save-status'), '使用する項目には表示名が必要です。', 'error');
-      return;
-    }
-    const locator = resolveLocator(row);
-    if (!locator) {
-      setStatus($('#save-status'), `「${label}」の対象入力欄を選択してください。`, 'error');
-      return;
-    }
-    const frame = resolveFrame(row) || row.frame;
-    const key = row.candidateSelect.value;
-    if (key !== 'keep') {
-      if (usedCandidates.has(key)) {
-        setStatus($('#save-status'), '同じ入力欄が複数の項目に割り当てられています。', 'error');
-        return;
-      }
-      usedCandidates.add(key);
-    }
-    const field = createField({ label, scope: row.scopeSelect.value, kind: row.kindSelect.value, locator, frame });
-    // 保存済みの項目は ID を保つ。ID が変わると登録済みの値が引き継がれない。
-    if (row.fieldId) field.id = row.fieldId;
-    else row.fieldId = field.id;
-    fields.push(field);
+  const { fields, error } = collectFields({ strict: true });
+  if (error) {
+    setStatus($('#save-status'), error, 'error');
+    return;
   }
 
   if (!fields.length) {

@@ -73,17 +73,16 @@ export function pageAgent(action, payload) {
   }
 
   if (action === 'fill') {
-    const used = new Set();
+    const entries = payload.entries || [];
+    const assigned = assignTargets(entries);
     const results = [];
     // ログインボタンの押下は行わない。値の入力のみを担当する。
-    for (const entry of payload.entries || []) {
-      const found = resolve(entry.locator, used);
+    for (const entry of entries) {
+      const found = assigned.get(entry.fieldId);
       if (!found) {
         results.push({ fieldId: entry.fieldId, label: entry.label, status: 'not-found' });
         continue;
       }
-      // 一度どれかの項目に割り当てた入力欄は、入力の可否によらず他の項目へ渡さない。
-      used.add(found.element);
       // 秘密情報は、入力欄の特定が確実な場合のみ入力する。
       if (found.weak && entry.kind === 'secret') {
         results.push({ fieldId: entry.fieldId, label: entry.label, status: 'weak-skipped' });
@@ -329,6 +328,32 @@ export function pageAgent(action, payload) {
 
   // --- 要素の再特定 -----------------------------------------------------
 
+  /**
+   * 各項目へ入力欄を割り当てる。
+   *
+   * 確実に特定できた項目から先に割り当て、残った入力欄を弱い一致の項目へ回す。
+   * 登録順にそのまま割り当てると、先に登録した項目の弱い一致が、後の項目が確実に
+   * 特定できる入力欄を先取りしてしまい、別の欄へ入力される場合がある。
+   *
+   * 一度どれかの項目に割り当てた入力欄は、入力の可否によらず他の項目へ渡さない。
+   *
+   * @returns {Map<string, {element: Element, weak: boolean}>} 項目 ID → 入力欄
+   */
+  function assignTargets(entries) {
+    const used = new Set();
+    const assigned = new Map();
+    for (const strongOnly of [true, false]) {
+      for (const entry of entries) {
+        if (assigned.has(entry.fieldId)) continue;
+        const found = resolve(entry.locator, used);
+        if (!found || (strongOnly && found.weak)) continue;
+        used.add(found.element);
+        assigned.set(entry.fieldId, found);
+      }
+    }
+    return assigned;
+  }
+
   function resolve(locator, used) {
     let best = null;
     for (const target of targets) {
@@ -417,15 +442,26 @@ export function pageAgent(action, payload) {
     element.dispatchEvent(event);
   }
 
+  /**
+   * 対象の入力欄を一時的に強調表示する。
+   *
+   * 強調表示中はその印を属性で残し、二重に強調表示しない。印が無いと、
+   * 「確認」を続けて押したときに強調表示中の見た目を「元の見た目」として
+   * 覚えてしまい、枠線が消えなくなる。
+   */
   function flash(element) {
+    const FLASHING = 'data-lgpwmng-flash';
     element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (element.hasAttribute(FLASHING)) return;
     const previousOutline = element.style.outline;
     const previousOffset = element.style.outlineOffset;
+    element.setAttribute(FLASHING, '');
     element.style.outline = '2px solid #d94f00';
     element.style.outlineOffset = '1px';
     setTimeout(() => {
       element.style.outline = previousOutline;
       element.style.outlineOffset = previousOffset;
+      element.removeAttribute(FLASHING);
     }, 1600);
   }
 }

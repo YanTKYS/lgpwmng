@@ -12,6 +12,8 @@ const editor = createServiceEditor({
     state.selectedId = serviceId;
     await reloadServices();
   },
+  // アカウントの自動保存後は一覧の表示だけを更新する。編集中の内容は読み直さない。
+  onAccountsSaved: () => { refreshList().catch(() => {}); },
 });
 
 async function boot() {
@@ -27,10 +29,15 @@ async function boot() {
   await reloadServices();
 }
 
-async function reloadServices() {
+/** サービス一覧（左側）だけを最新の内容にする。編集中の内容は読み直さない。 */
+async function refreshList() {
   const result = await request(MSG.SERVICE_LIST);
   state.services = result.services;
   renderList();
+}
+
+async function reloadServices() {
+  await refreshList();
   if (state.selectedId && state.services.some((service) => service.id === state.selectedId)) {
     await editor.load(state.selectedId);
   } else if (!editor.currentId()) {
