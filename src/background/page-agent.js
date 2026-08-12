@@ -5,10 +5,17 @@
  * 外部スコープの変数・import を一切参照しない自己完結した実装にしている。
  * 呼び出しは利用者が拡張を操作したタイミングのみで、常駐 content script は登録しない。
  *
- * @param {'scan'|'fill'|'highlight'} action
+ * @param {'scan'|'fill'|'highlight'|'probe'} action
  * @param {object} payload
  */
 export function pageAgent(action, payload) {
+  // フレーム自身の識別（軽量）。frame / iframe どちらでもこのフレームの
+  // 実行コンテキストから見れば同じ location / window.name で判別できるため、
+  // 要素種別ごとの別実装は不要。
+  if (action === 'probe') {
+    return { url: location.href, frameName: safeFrameName() };
+  }
+
   const FILLABLE_SELECTOR = 'input, select, textarea';
   const IGNORED_INPUT_TYPES = ['submit', 'button', 'reset', 'image', 'file', 'hidden'];
 
@@ -30,10 +37,13 @@ export function pageAgent(action, payload) {
     return {
       url: location.href,
       title: document.title,
-      candidates: targets.map((target, index) => {
+      frameName: safeFrameName(),
+      // 子フレーム（frame / iframe）をどれだけ見つけたか。呼び出し側が
+      // 「アクセスできなかったフレームがあるか」を大まかに判断するために使う。
+      childFrameCount: document.querySelectorAll('frame, iframe').length,
+      candidates: targets.map((target) => {
         const guess = guessMeaning(target.locator);
         return {
-          index,
           locator: target.locator,
           guessLabel: guess.label,
           guessKind: guess.kind,
@@ -50,9 +60,17 @@ export function pageAgent(action, payload) {
   }
 
   if (action === 'fill') {
-    // 入力の直前に、実行中のページ自身の URL が登録条件に一致するか確認する。
-    // background 側の確認とページ遷移が競合しても、ここで確実に中止できる。
-    if (!urlMatchesRules(payload.matchRules)) {
+    // 入力の直前に、実行中のページ（このフレーム）自身の URL が登録条件に
+    // 一致するか確認する。background 側の確認とページ遷移が競合しても、
+    // ここで確実に中止できる。
+    //
+    // frameCheck が指定されている場合（子フレームへの入力）は、このフレーム
+    // 自身の URL を、登録時に確認したフレーム URL（origin + pathname）と比較する。
+    // トップフレームへの入力は、従来どおりサービスの matchRules で確認する。
+    const urlOk = payload.frameCheck
+      ? frameSelfMatches(payload.frameCheck)
+      : urlMatchesRules(payload.matchRules);
+    if (!urlOk) {
       return { error: 'url-mismatch', url: location.href };
     }
 
@@ -131,6 +149,31 @@ export function pageAgent(action, payload) {
     if (!pathname) return '/';
     const trimmed = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
     return trimmed === '' ? '/' : trimmed;
+  }
+
+  /**
+   * このフレーム自身の URL が、登録時に確認したフレーム URL（origin + pathname）と
+   * 一致するか。子フレームへの入力直前の再確認に使う（query 文字列は無視する）。
+   */
+  function frameSelfMatches(check) {
+    let url;
+    try {
+      url = new URL(location.href);
+    } catch {
+      return false;
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    if (url.origin !== check.origin) return false;
+    return trimPath(url.pathname) === trimPath(check.pathname);
+  }
+
+  /** frame / iframe の name 属性（window.name）。取得できなければ空文字。 */
+  function safeFrameName() {
+    try {
+      return typeof window.name === 'string' ? window.name : '';
+    } catch {
+      return '';
+    }
   }
 
   // --- 要素収集 ---------------------------------------------------------

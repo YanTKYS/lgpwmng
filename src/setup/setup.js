@@ -15,6 +15,7 @@ import {
   createService,
 } from '../lib/model.js';
 import { parseUrl, ruleMatches, suggestRuleFromUrl } from '../lib/match.js';
+import { describeFrameDescriptor, frameDescriptorKey } from '../lib/frame.js';
 import { $, clear, el, fromTemplate, setStatus } from '../ui/dom.js';
 import {
   createAccountAutosaveTrigger,
@@ -115,10 +116,35 @@ async function loadScan() {
     }
   }
   state.candidates = scan && Array.isArray(scan.candidates) ? scan.candidates : [];
-  $('#no-candidates').classList.toggle('hidden', state.candidates.length > 0);
+  updateScanStatusMessage(scan);
   if (!state.serviceId && scan && scan.title && !$('#service-name').value) {
     $('#service-name').value = scan.title.slice(0, 60);
   }
+}
+
+/**
+ * 「候補が見つからない」旨の表示。全フレームを走査したうえで本当に 0 件の場合と、
+ * 一部のフレームにアクセスできなかった場合とを区別する。内部の frameId や
+ * 例外の内容はそのまま表示しない。
+ */
+function updateScanStatusMessage(scan) {
+  const node = $('#no-candidates');
+  const partial = Boolean(scan && scan.partial);
+  const hasCandidates = state.candidates.length > 0;
+
+  if (!hasCandidates) {
+    node.textContent = partial
+      ? '一部のフレームを確認できなかったため、入力欄の候補を取得できませんでした。ログイン画面を開いた状態で拡張アイコンから開き直してください。'
+      : '入力欄の候補が取得できませんでした。ログイン画面を開いた状態で拡張アイコンから開き直してください。';
+    node.classList.remove('hidden');
+    return;
+  }
+  if (partial) {
+    node.textContent = '一部のフレームを確認できませんでした。見つからない入力欄がある場合は、ログイン画面を開いた状態で拡張アイコンから開き直してください。';
+    node.classList.remove('hidden');
+    return;
+  }
+  node.classList.add('hidden');
 }
 
 // --- 行の生成 ---------------------------------------------------------------
@@ -131,20 +157,31 @@ function candidateLabel(candidate) {
   const attrs = [locator.tagName + (locator.type ? `[${locator.type}]` : '')];
   if (locator.elementId) attrs.push(`#${locator.elementId}`);
   if (locator.name) attrs.push(`name=${locator.name}`);
-  return `${parts[0]} — ${attrs.join(' ')}`;
+  let label = `${parts[0]} — ${attrs.join(' ')}`;
+  const frameHint = describeFrameDescriptor(candidate.frame);
+  if (frameHint) label += ` [フレーム: ${frameHint}]`;
+  return label;
 }
 
-function matchCandidateIndex(locator) {
+/**
+ * 識別情報（locator）が一致する候補を探す。frame を指定した場合は、
+ * 同じフレームの候補だけを対象にする（再スキャンで frameId が変わっても、
+ * 別フレームの同名項目へ誤って対応付けないため）。
+ */
+function matchCandidateIndex(locator, frame) {
+  const frameKey = frame ? frameDescriptorKey(frame) : null;
+  const inSameFrame = (candidate) => !frameKey || frameDescriptorKey(candidate.frame) === frameKey;
+
   const byId = state.candidates.findIndex(
-    (candidate) => locator.elementId && candidate.locator.elementId === locator.elementId,
+    (candidate) => inSameFrame(candidate) && locator.elementId && candidate.locator.elementId === locator.elementId,
   );
   if (byId >= 0) return byId;
   const byName = state.candidates.findIndex(
-    (candidate) => locator.name && candidate.locator.name === locator.name,
+    (candidate) => inSameFrame(candidate) && locator.name && candidate.locator.name === locator.name,
   );
   if (byName >= 0) return byName;
   return state.candidates.findIndex(
-    (candidate) => locator.cssPath && candidate.locator.cssPath === locator.cssPath,
+    (candidate) => inSameFrame(candidate) && locator.cssPath && candidate.locator.cssPath === locator.cssPath,
   );
 }
 
@@ -155,7 +192,7 @@ function renderRows() {
   if (state.serviceId) {
     const usedIndexes = new Set();
     for (const field of state.service.fields) {
-      const index = matchCandidateIndex(field.locator);
+      const index = matchCandidateIndex(field.locator, field.frame);
       if (index >= 0) usedIndexes.add(index);
       addRow({
         fieldId: field.id,
@@ -164,18 +201,33 @@ function renderRows() {
         kind: field.kind,
         candidateIndex: index,
         locator: field.locator,
+        frame: field.frame,
         use: true,
       });
     }
     addRowsForUnusedCandidates(usedIndexes);
   } else {
+    // 同じ推定名（例: ユーザーID）が異なるフレームに複数存在する場合、
+    // どちらが本物のログインフォームか自動では決められない。この場合は
+    // 両方を候補として見せるだけにとどめ、既定でチェックしない
+    // （最終的な確定は利用者が行う）。
+    const framesByLabel = new Map();
+    for (const candidate of state.candidates) {
+      if (!candidate.guessLabel) continue;
+      const key = frameDescriptorKey(candidate.frame);
+      if (!framesByLabel.has(candidate.guessLabel)) framesByLabel.set(candidate.guessLabel, new Set());
+      framesByLabel.get(candidate.guessLabel).add(key);
+    }
     state.candidates.forEach((candidate, index) => {
+      const frameKeys = candidate.guessLabel ? framesByLabel.get(candidate.guessLabel) : null;
+      const ambiguousAcrossFrames = Boolean(frameKeys && frameKeys.size > 1);
       addRow({
         label: candidate.guessLabel || candidate.locator.labelText || '',
         scope: defaultScope(candidate.guessLabel),
         kind: candidate.guessKind,
         candidateIndex: index,
-        use: Boolean(candidate.guessLabel),
+        frame: candidate.frame,
+        use: Boolean(candidate.guessLabel) && !ambiguousAcrossFrames,
       });
     });
   }
@@ -191,6 +243,7 @@ function addRowsForUnusedCandidates(usedIndexes) {
       scope: defaultScope(candidate.guessLabel),
       kind: candidate.guessKind,
       candidateIndex: index,
+      frame: candidate.frame,
       use: false,
     });
   });
@@ -201,16 +254,24 @@ function addRowsForUnusedCandidates(usedIndexes) {
  * 行は作り直さずに「対象入力欄」の選択肢だけを差し替えるため、
  * 入力途中の表示名・値や、手動で追加した項目がそのまま残る。
  *
+ * frameId は再スキャンのたびに変わり得るため使わず、フレーム自身の URL（frame）で
+ * 対応付けを保持する。
+ *
  * @param {Array<object|null>} previousLocators 差し替え前に各行が指していた入力欄
+ * @param {Array<object|null>} previousFrames 差し替え前に各行が指していたフレーム
  */
-function applyRescan(previousLocators) {
+function applyRescan(previousLocators, previousFrames) {
   const usedIndexes = new Set();
   state.rows.forEach((row, position) => {
     const locator = previousLocators[position];
-    const index = locator ? matchCandidateIndex(locator) : -1;
+    const frame = previousFrames[position];
+    const index = locator ? matchCandidateIndex(locator, frame) : -1;
     if (index >= 0) usedIndexes.add(index);
     // 再スキャンで見失った入力欄は、識別情報を保持したまま「見つかりません」と表示する。
-    if (locator && index < 0) row.locator = locator;
+    if (locator && index < 0) {
+      row.locator = locator;
+      row.frame = frame;
+    }
     fillCandidateOptions(row.candidateSelect, index, index < 0 ? locator : null);
   });
   addRowsForUnusedCandidates(usedIndexes);
@@ -240,6 +301,7 @@ function addRow(init = {}) {
     tr,
     fieldId: init.fieldId || null,
     locator: init.locator || null,
+    frame: init.frame || null,
     useInput,
     labelInput,
     scopeSelect,
@@ -266,10 +328,15 @@ function addRow(init = {}) {
       setStatus($('#save-status'), '対象入力欄が選択されていません。', 'error');
       return;
     }
+    const frame = resolveFrame(record);
     try {
-      const result = await request(MSG.PAGE_HIGHLIGHT, { tabId: state.tabId, locator });
+      const result = await request(MSG.PAGE_HIGHLIGHT, { tabId: state.tabId, locator, frame });
       if (result && result.ok) {
         setStatus($('#save-status'), '対象のログイン画面で該当欄を強調表示しました。', 'ok');
+      } else if (result && result.reason === 'frame-ambiguous') {
+        setStatus($('#save-status'), '対象のフレームを一つに絞り込めませんでした。', 'error');
+      } else if (result && result.reason === 'frame-not-found') {
+        setStatus($('#save-status'), '対象のフレームが見つかりませんでした。再スキャンしてください。', 'error');
       } else {
         setStatus($('#save-status'), '対象の入力欄がログイン画面上に見つかりませんでした。', 'error');
       }
@@ -323,6 +390,15 @@ function resolveLocator(record) {
   return candidate ? candidate.locator : null;
 }
 
+/** 選択中の候補が属するフレーム記述子。resolveLocator と対で使う。 */
+function resolveFrame(record) {
+  const value = record.candidateSelect.value;
+  if (value === 'keep') return record.frame || null;
+  if (value === '') return null;
+  const candidate = state.candidates[Number(value)];
+  return candidate ? candidate.frame : null;
+}
+
 // --- 値の入力欄 -------------------------------------------------------------
 
 /**
@@ -336,7 +412,8 @@ function currentFields() {
     const label = row.labelInput.value.trim();
     if (!label) continue;
     const locator = resolveLocator(row) || row.locator || {};
-    const field = createField({ label, scope: row.scopeSelect.value, kind: row.kindSelect.value, locator });
+    const frame = resolveFrame(row) || row.frame;
+    const field = createField({ label, scope: row.scopeSelect.value, kind: row.kindSelect.value, locator, frame });
     if (row.fieldId) field.id = row.fieldId;
     else row.fieldId = field.id;
     fields.push(field);
@@ -395,6 +472,7 @@ async function save() {
       setStatus($('#save-status'), `「${label}」の対象入力欄を選択してください。`, 'error');
       return;
     }
+    const frame = resolveFrame(row) || row.frame;
     const key = row.candidateSelect.value;
     if (key !== 'keep') {
       if (usedCandidates.has(key)) {
@@ -403,7 +481,7 @@ async function save() {
       }
       usedCandidates.add(key);
     }
-    const field = createField({ label, scope: row.scopeSelect.value, kind: row.kindSelect.value, locator });
+    const field = createField({ label, scope: row.scopeSelect.value, kind: row.kindSelect.value, locator, frame });
     // 保存済みの項目は ID を保つ。ID が変わると登録済みの値が引き継がれない。
     if (row.fieldId) field.id = row.fieldId;
     else row.fieldId = field.id;
@@ -492,11 +570,12 @@ $('#btn-add-account').addEventListener('click', () => {
 $('#btn-rescan').addEventListener('click', async () => {
   try {
     const scan = await request(MSG.PAGE_SCAN, { tabId: state.tabId });
-    // 候補を差し替える前に、各行が今どの入力欄を指しているかを控える。
+    // 候補を差し替える前に、各行が今どの入力欄・フレームを指しているかを控える。
     const previousLocators = state.rows.map((row) => resolveLocator(row));
+    const previousFrames = state.rows.map((row) => resolveFrame(row));
     state.candidates = Array.isArray(scan.candidates) ? scan.candidates : [];
-    $('#no-candidates').classList.toggle('hidden', state.candidates.length > 0);
-    applyRescan(previousLocators);
+    updateScanStatusMessage(scan);
+    applyRescan(previousLocators, previousFrames);
     setStatus($('#save-status'), 'ページを再スキャンしました。', 'ok');
   } catch (error) {
     setStatus($('#save-status'), error.message, 'error');
