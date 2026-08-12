@@ -21,6 +21,7 @@ import { $, clear, el, setStatus } from '../ui/dom.js';
 import {
   createAccountAutosaveTrigger,
   createSaveQueue,
+  nextAccountName,
   renderAccountCards,
   renderSaveStatus,
   renderValueFields,
@@ -172,8 +173,9 @@ export function createServiceEditor({ onChanged }) {
       });
 
       body.append(el('tr', {}, [
-        el('td', {}, [textInput(field.label, (value) => {
-          field.label = value;
+        // 値の入力欄には項目の表示名が出るため、表示名が確定したところで作り直す。
+        // キー入力のたびに作り直すと、アカウント欄が毎回消えて作り直される。
+        el('td', {}, [textInput(field.label, (value) => { field.label = value; }, {}, () => {
           renderSharedValues();
           renderAccounts();
         })]),
@@ -260,7 +262,7 @@ export function createServiceEditor({ onChanged }) {
 
   $('#btn-add-account').addEventListener('click', () => {
     if (!service) return;
-    service.accounts.push(createAccount({ name: `アカウント${service.accounts.length + 1}` }));
+    service.accounts.push(createAccount({ name: nextAccountName(service.accounts) }));
     renderAccounts();
     triggerAccountAutosave();
   });

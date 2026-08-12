@@ -283,8 +283,6 @@ async function fillAcrossFrames(tabId, entries, matchRules, serviceName) {
     results.push(...resolveFrameFillResult(topResult, topEntries));
   }
 
-  if (!frameEntries.length) return results;
-
   // 同じフレームを指す項目はまとめてフレーム再特定・入力を行う。
   const groups = new Map();
   for (const entry of frameEntries) {
@@ -330,7 +328,18 @@ async function fillAcrossFrames(tabId, entries, matchRules, serviceName) {
     results.push(...resolveFrameFillResult(frameResult, groupEntries));
   }
 
-  return results;
+  return sortByEntryOrder(results, entries);
+}
+
+/**
+ * 結果をフレームごとに集めるため、そのままでは登録した項目の順に並ばない。
+ * popup では登録順に並んでいる方が確認しやすいため、entries の順へ並べ直す。
+ * 結果が返ってこなかった項目は「入力に失敗」として補い、項目と結果を 1 対 1 にする。
+ */
+function sortByEntryOrder(results, entries) {
+  const byFieldId = new Map(results.map((result) => [result.fieldId, result]));
+  return entries.map((entry) => byFieldId.get(entry.fieldId)
+    || { fieldId: entry.fieldId, label: entry.label, status: 'error' });
 }
 
 function resolveFrameFillResult(frameResult, groupEntries) {

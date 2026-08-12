@@ -135,6 +135,18 @@ export function renderAccountCards(container, accounts, accountFields, { onRemov
   }
 }
 
+/**
+ * 「アカウントを追加」で使う既定名。
+ * 件数だけで採番すると、削除したあとに追加したとき既存の名前と重複するため、
+ * 使われていない番号まで進める。
+ */
+export function nextAccountName(accounts) {
+  const used = new Set(accounts.map((account) => account.name));
+  let number = accounts.length + 1;
+  while (used.has(`アカウント${number}`)) number += 1;
+  return `アカウント${number}`;
+}
+
 // --- 自動保存 ----------------------------------------------------------------
 
 /**
@@ -152,44 +164,30 @@ export function snapshotService(service) {
  * changeFieldScope() や項目削除は、入力欄への即時フィードバックのために
  * account.values / sharedValues を画面上ですぐに書き換える。しかしこれらは
  * 「入力項目」＝サービス設定の一部であり、明示保存されるまでは Vault へ
- * 反映してはならない。そこで、直前保存時の項目一覧（base.fields）と現在の
- * 項目一覧（live.fields）を比較し、区分または存在が変わった項目（＝まだ
- * 保存されていない変更がある項目）については値を直前保存時のまま送り、
- * 変わっていない項目の値・アカウント名・区分は現在の内容をそのまま送る。
+ * 反映してはならない。
+ *
+ * そこで各アカウントの値は「直前保存時の値」を土台にし、直前保存時から区分が
+ * 変わっていない項目（＝サービス設定側に未保存の変更が無い項目）についてのみ、
+ * 画面上の現在の値で上書きする。区分を変えた項目・削除した項目・まだ保存して
+ * いない項目の値は、土台にした直前保存時の内容がそのまま残る。
+ * アカウント名や区分など、アカウント自身の内容は常に現在の内容を送る。
  */
 export function buildSafeAccountsPayload(base, live) {
-  const baseFieldsById = new Map((base.fields || []).map((field) => [field.id, field]));
-  const dirtyFieldIds = new Set();
-  for (const field of live.fields || []) {
-    const original = baseFieldsById.get(field.id);
-    if (!original || original.scope !== field.scope) dirtyFieldIds.add(field.id);
-  }
-  for (const field of base.fields || []) {
-    if (!(live.fields || []).some((entry) => entry.id === field.id)) dirtyFieldIds.add(field.id);
-  }
-
+  const savedScopes = new Map((base.fields || []).map((field) => [field.id, field.scope]));
+  const savedFieldIds = new Set(
+    (live.fields || [])
+      .filter((field) => savedScopes.get(field.id) === field.scope)
+      .map((field) => field.id),
+  );
   const baseAccountsById = new Map((base.accounts || []).map((account) => [account.id, account]));
 
   return (live.accounts || []).map((account) => {
     const baseAccount = baseAccountsById.get(account.id);
-    const values = {};
-    const seen = new Set();
-    for (const [fieldId, value] of Object.entries(account.values || {})) {
-      seen.add(fieldId);
-      if (dirtyFieldIds.has(fieldId)) {
-        // 未保存の項目変更の影響を受けた値は、直前保存時の値のまま据え置く。
-        if (baseAccount && baseAccount.values[fieldId] !== undefined) values[fieldId] = baseAccount.values[fieldId];
-      } else {
-        values[fieldId] = value;
-      }
-    }
-    // 未保存の変更（区分変更 / 削除）によって現在の account.values から
-    // 消えてしまった値を、直前保存時の内容から復元する。
-    if (baseAccount) {
-      for (const [fieldId, value] of Object.entries(baseAccount.values || {})) {
-        if (seen.has(fieldId) || !dirtyFieldIds.has(fieldId)) continue;
-        values[fieldId] = value;
-      }
+    const values = { ...(baseAccount && baseAccount.values) };
+    for (const fieldId of savedFieldIds) {
+      const value = (account.values || {})[fieldId];
+      if (value) values[fieldId] = value;
+      else delete values[fieldId];
     }
     return { ...account, values };
   });

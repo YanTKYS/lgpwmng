@@ -7,23 +7,7 @@
  */
 
 import { ORIGIN_MODE, PATHNAME_MODE, createMatchRule, isPendingRule } from './model.js';
-
-/** @param {string} rawUrl @returns {URL|null} */
-export function parseUrl(rawUrl) {
-  try {
-    const url = new URL(rawUrl);
-    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
-    return url;
-  } catch {
-    return null;
-  }
-}
-
-function normalizePath(pathname) {
-  if (!pathname) return '/';
-  const trimmed = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
-  return trimmed === '' ? '/' : trimmed;
-}
+import { normalizePathname, parseHttpUrl } from './url.js';
 
 function originMatches(rule, url) {
   if (!rule.origin) return false;
@@ -45,8 +29,8 @@ function originMatches(rule, url) {
 
 function pathMatches(rule, url) {
   if (rule.pathnameMode === PATHNAME_MODE.ANY) return true;
-  const target = normalizePath(url.pathname);
-  const expected = normalizePath(rule.pathname || '/');
+  const target = normalizePathname(url.pathname);
+  const expected = normalizePathname(rule.pathname || '/');
   if (rule.pathnameMode === PATHNAME_MODE.PREFIX) {
     return target === expected || target.startsWith(expected === '/' ? '/' : `${expected}/`);
   }
@@ -64,7 +48,7 @@ export function ruleMatches(rule, url) {
  * @param {string} rawUrl
  */
 export function serviceMatchesUrl(service, rawUrl) {
-  const url = parseUrl(rawUrl);
+  const url = parseHttpUrl(rawUrl);
   if (!url) return false;
   return service.matchRules.some((rule) => ruleMatches(rule, url));
 }
@@ -110,7 +94,7 @@ export function migrateLegacyRule(rule, url) {
  * @returns {{changed: boolean, migrated: Array<{serviceId: string, serviceName: string, origin: string}>}}
  */
 export function migrateLegacyRulesForUrl(vault, rawUrl) {
-  const url = parseUrl(rawUrl);
+  const url = parseHttpUrl(rawUrl);
   const migrated = [];
   if (!url) return { changed: false, migrated };
 
@@ -131,8 +115,8 @@ export function migrateLegacyRulesForUrl(vault, rawUrl) {
  */
 function ruleScore(rule) {
   let score = rule.originMode === ORIGIN_MODE.EXACT ? 100 : 40;
-  if (rule.pathnameMode === PATHNAME_MODE.EXACT) score += 100 + normalizePath(rule.pathname).length;
-  else if (rule.pathnameMode === PATHNAME_MODE.PREFIX) score += 50 + normalizePath(rule.pathname).length;
+  if (rule.pathnameMode === PATHNAME_MODE.EXACT) score += 100 + normalizePathname(rule.pathname).length;
+  else if (rule.pathnameMode === PATHNAME_MODE.PREFIX) score += 50 + normalizePathname(rule.pathname).length;
   return score;
 }
 
@@ -142,7 +126,7 @@ function ruleScore(rule) {
  * @param {string} rawUrl
  */
 export function findMatchingServices(vault, rawUrl) {
-  const url = parseUrl(rawUrl);
+  const url = parseHttpUrl(rawUrl);
   if (!url) return [];
   const matched = [];
   for (const service of vault.services) {
@@ -158,12 +142,12 @@ export function findMatchingServices(vault, rawUrl) {
 
 /** 現在の URL から既定のマッチ条件を作る（登録支援用）。 */
 export function suggestRuleFromUrl(rawUrl) {
-  const url = parseUrl(rawUrl);
+  const url = parseHttpUrl(rawUrl);
   if (!url) return createMatchRule();
   return createMatchRule({
     origin: url.origin,
     originMode: ORIGIN_MODE.EXACT,
-    pathname: normalizePath(url.pathname),
+    pathname: normalizePathname(url.pathname),
     pathnameMode: PATHNAME_MODE.EXACT,
   });
 }
@@ -174,13 +158,13 @@ export function describeRule(rule) {
     const host = rule.legacy.hostnameMode === ORIGIN_MODE.SUFFIX
       ? `*.${rule.legacy.hostname}`
       : rule.legacy.hostname;
-    const path = rule.pathnameMode === PATHNAME_MODE.ANY ? '' : normalizePath(rule.pathname);
+    const path = rule.pathnameMode === PATHNAME_MODE.ANY ? '' : normalizePathname(rule.pathname);
     return `${host}${path}（プロトコル未確定）`;
   }
   const origin = rule.originMode === ORIGIN_MODE.SUFFIX
     ? rule.origin.replace('://', '://*.')
     : rule.origin;
   if (rule.pathnameMode === PATHNAME_MODE.ANY) return `${origin}（パス問わず）`;
-  const path = normalizePath(rule.pathname);
+  const path = normalizePathname(rule.pathname);
   return rule.pathnameMode === PATHNAME_MODE.PREFIX ? `${origin}${path}/*` : `${origin}${path}`;
 }
