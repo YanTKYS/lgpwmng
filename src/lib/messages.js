@@ -19,6 +19,7 @@ export const MSG = {
   SERVICE_MATCH: 'service/match',
 
   PAGE_SCAN: 'page/scan',
+  PAGE_CAPTURE: 'page/capture',
   PAGE_HIGHLIGHT: 'page/highlight',
   SCAN_RESULT_GET: 'scan/get',
 

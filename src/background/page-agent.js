@@ -65,6 +65,22 @@ export function pageAgent(action, payload) {
     };
   }
 
+  /**
+   * ログイン画面に既に入力されている値を取得する。scan と違い認証情報そのものを
+   * 扱うため、明示的に呼ばれたときだけ実行する別アクションにしている
+   * （常駐監視は行わない。呼び出し元は「このログイン画面を設定」の操作時に限る）。
+   * 空欄の入力欄は積極的には含めない（未入力を値として登録する意味が無いため）。
+   */
+  if (action === 'capture') {
+    return {
+      url: location.href,
+      frameName: safeFrameName(),
+      values: targets
+        .map((target) => ({ locator: target.locator, value: currentValueOf(target.element) }))
+        .filter((entry) => entry.value !== ''),
+    };
+  }
+
   if (action === 'highlight') {
     const found = resolve(payload.locator, new Set());
     if (!found) return { ok: false };
@@ -331,6 +347,20 @@ export function pageAgent(action, payload) {
     }
     if (locator.type === 'password') return { label: 'パスワード', kind: 'secret' };
     return { label: '', kind: 'text' };
+  }
+
+  // --- 現在値の取得（capture） --------------------------------------------
+
+  /** 入力欄の現在の値。未入力・未選択・未チェックは空文字にする（値として取り込まない）。 */
+  function currentValueOf(element) {
+    if (element.tagName.toLowerCase() === 'select') {
+      const option = element.options[element.selectedIndex];
+      return option ? option.value : '';
+    }
+    if (element.type === 'checkbox' || element.type === 'radio') {
+      return element.checked ? (element.value || 'on') : '';
+    }
+    return element.value || '';
   }
 
   // --- 要素の再特定 -----------------------------------------------------

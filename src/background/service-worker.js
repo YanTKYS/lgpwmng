@@ -115,6 +115,9 @@ async function handle(message) {
     case MSG.PAGE_SCAN:
       return scanPage(payload.tabId);
 
+    case MSG.PAGE_CAPTURE:
+      return capturePage(payload.tabId);
+
     case MSG.SCAN_RESULT_GET: {
       const stored = (await chrome.storage.session.get(SCAN_KEY))[SCAN_KEY];
       // 別のタブを走査した結果を渡さない（設定ページが誤った入力欄を表示するため）。
@@ -224,6 +227,29 @@ function hasUnreachableFrames(frameResults) {
     1,
   );
   return frameResults.length < expected;
+}
+
+/**
+ * ログイン画面に入力済みの値を、全フレームから 1 回だけ取得する。
+ *
+ * scan とは別のアクション（'capture'）として実行し、走査（入力欄の構造）とは
+ * 責務を分ける。呼び出すのは、利用者が「このログイン画面を設定」を実行した
+ * ときだけ（新規サービスの設定を開始した直後）で、常駐監視は行わない。
+ *
+ * 取得した値はどこにも保存せず、メッセージの応答としてそのまま呼び出し元
+ * （setup ページ）へ返す。scanPage() のように chrome.storage.session へ
+ * 保存することはしない（秘密情報を一時ストレージへ平文で残さないため）。
+ */
+async function capturePage(tabId) {
+  const frameResults = await runInAllFrames(tabId, 'capture', {});
+  const values = [];
+  for (const entry of frameResults) {
+    const frame = frameDescriptorFromUrl(entry.result.url, entry.result.frameName, entry.frameId === 0);
+    for (const item of asArray(entry.result.values)) {
+      values.push({ locator: item.locator, value: item.value, frame });
+    }
+  }
+  return { values };
 }
 
 /** 強調表示。対象入力欄が属するフレームを再特定してから、そのフレーム内でだけ実行する。 */
