@@ -42,8 +42,8 @@
           <div class="row editor-head">
             <h2 id="editor-title">サービス</h2>
             <span class="spacer"></span>
-            <button type="button" id="btn-save-service" class="primary">保存</button>
-            <button type="button" id="btn-delete-service" class="danger">削除</button>
+            <button type="button" id="btn-save-service" class="primary">サービス設定を保存</button>
+            <button type="button" id="btn-delete-service" class="danger">サービス削除</button>
           </div>
           <div id="editor-status" class="status"></div>
 
@@ -55,6 +55,7 @@
           <section class="block">
             <div class="row block-head">
               <h3>アカウント</h3>
+              <span id="account-save-status" class="status muted"></span>
               <span class="spacer"></span>
               <button type="button" id="btn-add-account">＋ アカウントを追加</button>
             </div>
@@ -188,7 +189,7 @@
 
         <section class="block">
           <h3>この拡張について</h3>
-          <p class="small muted">lgpwmng v0.2.0 / 外部通信なし・端末内のみで動作します。認証情報は AES-GCM で暗号化して保存されます。</p>
+          <p class="small muted">lgpwmng v0.2.1 / 外部通信なし・端末内のみで動作します。認証情報は AES-GCM で暗号化して保存されます。</p>
         </section>
       </section>
     </div>

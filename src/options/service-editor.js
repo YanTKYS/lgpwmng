@@ -17,7 +17,16 @@ import {
   normalizeOrigin,
 } from '../lib/model.js';
 import { $, clear, el, setStatus } from '../ui/dom.js';
-import { renderAccountCards, renderValueFields, select, textInput } from '../ui/account-editor.js';
+import {
+  createAccountAutosaveTrigger,
+  createSaveQueue,
+  renderAccountCards,
+  renderSaveStatus,
+  renderValueFields,
+  select,
+  snapshotServiceExceptAccounts,
+  textInput,
+} from '../ui/account-editor.js';
 
 const ORIGIN_MODE_LABELS = [
   [ORIGIN_MODE.EXACT, '完全一致'],
@@ -42,6 +51,24 @@ export function createServiceEditor({ onChanged }) {
   // 一覧を素早く切り替えたとき、先に開始した取得が後から完了しても
   // 現在表示中のサービスを上書きしないための世代番号。
   let loadVersion = 0;
+
+  // アカウントの自動保存。「アカウント以外」（名前・URL・入力項目・共通値）は
+  // persisted が指す直前保存済みの内容のまま保ち、明示的な「保存」でのみ更新する。
+  // persisted が null の間（＝一度も保存していない新規サービス）は自動保存しない。
+  let persisted = null;
+  const saveQueue = createSaveQueue();
+
+  function renderAccountSaveStatus(status, error) {
+    renderSaveStatus($('#account-save-status'), status, { error, onRetry: () => triggerAccountAutosave() });
+  }
+
+  const triggerAccountAutosave = createAccountAutosaveTrigger({
+    getService: () => service,
+    getPersistedBase: () => persisted,
+    saveQueue,
+    sendSave: (payload) => request(MSG.SERVICE_SAVE, { service: payload }),
+    onStatus: renderAccountSaveStatus,
+  });
 
   /**
    * オリジン入力欄。入力途中の値を正規化してしまわないよう、
@@ -203,7 +230,10 @@ export function createServiceEditor({ onChanged }) {
 
   function renderAccounts() {
     const accountFields = service.fields.filter((field) => field.scope === FIELD_SCOPE.ACCOUNT);
-    renderAccountCards($('#account-list'), service.accounts, accountFields);
+    renderAccountCards($('#account-list'), service.accounts, accountFields, {
+      onChange: triggerAccountAutosave,
+      onRemove: triggerAccountAutosave,
+    });
   }
 
   // --- 操作 -----------------------------------------------------------------
@@ -228,6 +258,7 @@ export function createServiceEditor({ onChanged }) {
     if (!service) return;
     service.accounts.push(createAccount({ name: `アカウント${service.accounts.length + 1}` }));
     renderAccounts();
+    triggerAccountAutosave();
   });
 
   /**
@@ -249,11 +280,17 @@ export function createServiceEditor({ onChanged }) {
       setStatus($('#editor-status'), problem, 'error');
       return;
     }
+    const targetService = service;
     try {
-      const result = await request(MSG.SERVICE_SAVE, { service });
-      service.id = result.serviceId;
+      // アカウントの自動保存と同じキューを通し、古い保存処理と新しい保存処理が
+      // 前後することなく順番に実行されるようにする。
+      await saveQueue.enqueue(async () => {
+        const result = await request(MSG.SERVICE_SAVE, { service: targetService });
+        targetService.id = result.serviceId;
+        persisted = snapshotServiceExceptAccounts(targetService);
+      });
       // 一覧を再読込した後に結果を表示する（再読込で状態表示がクリアされるため）。
-      await onChanged(service.id);
+      await onChanged(targetService.id);
       setStatus($('#editor-status'), '保存しました。', 'ok');
     } catch (error) {
       setStatus($('#editor-status'), error.message, 'error');
@@ -267,6 +304,7 @@ export function createServiceEditor({ onChanged }) {
     try {
       await request(MSG.SERVICE_DELETE, { serviceId: service.id });
       service = null;
+      persisted = null;
       render();
       await onChanged(null);
     } catch (error) {
@@ -280,6 +318,9 @@ export function createServiceEditor({ onChanged }) {
       const result = await request(MSG.SERVICE_GET, { serviceId });
       if (version !== loadVersion) return;
       service = result.service;
+      // 既に保存済みのサービスなので、この時点からアカウントの変更は自動保存する。
+      persisted = snapshotServiceExceptAccounts(service);
+      renderAccountSaveStatus(null);
       setStatus($('#editor-status'), '');
       render();
     },
@@ -289,12 +330,17 @@ export function createServiceEditor({ onChanged }) {
       service.fields = [createField({ label: 'ユーザーID' }), createField({ label: 'パスワード', kind: FIELD_KIND.SECRET })];
       service.accounts = [createAccount({ name: '標準ユーザー' })];
       service.matchRules = [createMatchRule({ pathname: '/' })];
+      // 新規サービスは未保存の間、アカウントの変更も自動保存しない（最初は明示的な保存が必要）。
+      persisted = null;
+      renderAccountSaveStatus(null);
       setStatus($('#editor-status'), 'ログイン画面から設定すると、対象入力欄の識別情報も登録されます。');
       render();
     },
     clear() {
       loadVersion += 1;
       service = null;
+      persisted = null;
+      renderAccountSaveStatus(null);
       render();
     },
     currentId() {

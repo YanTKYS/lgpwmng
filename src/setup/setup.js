@@ -16,7 +16,14 @@ import {
 } from '../lib/model.js';
 import { parseUrl, ruleMatches, suggestRuleFromUrl } from '../lib/match.js';
 import { $, clear, el, fromTemplate, setStatus } from '../ui/dom.js';
-import { renderAccountCards, renderValueFields } from '../ui/account-editor.js';
+import {
+  createAccountAutosaveTrigger,
+  createSaveQueue,
+  renderAccountCards,
+  renderSaveStatus,
+  renderValueFields,
+  snapshotServiceExceptAccounts,
+} from '../ui/account-editor.js';
 
 const params = new URLSearchParams(location.search);
 const state = {
@@ -24,9 +31,26 @@ const state = {
   url: params.get('url') || '',
   serviceId: params.get('service') || null,
   service: null,
+  // アカウント以外（名前・URL・入力項目・共通値）の直前保存済みスナップショット。
+  // null の間（＝まだ一度も保存していない新規サービス）はアカウントの変更も自動保存しない。
+  persisted: null,
   candidates: [],
   rows: [],
 };
+
+const saveQueue = createSaveQueue();
+
+function renderAccountSaveStatus(status, error) {
+  renderSaveStatus($('#account-save-status'), status, { error, onRetry: () => triggerAccountAutosave() });
+}
+
+const triggerAccountAutosave = createAccountAutosaveTrigger({
+  getService: () => state.service,
+  getPersistedBase: () => state.persisted,
+  saveQueue,
+  sendSave: (payload) => request(MSG.SERVICE_SAVE, { service: payload }),
+  onStatus: renderAccountSaveStatus,
+});
 
 const SHARED_BY_DEFAULT = ['自治体コード', '所属コード'];
 
@@ -64,13 +88,18 @@ async function loadService() {
   if (isExisting) {
     const result = await request(MSG.SERVICE_GET, { serviceId: state.serviceId });
     state.service = result.service;
+    // 既に保存済みのサービスなので、この時点からアカウントの変更は自動保存する。
+    state.persisted = snapshotServiceExceptAccounts(state.service);
   } else {
     // 新規サービスも下書きとして最初から用意し、この画面だけで
     // 入力項目・アカウントまで一気通貫で設定できるようにする。
+    // ただしまだ一度も保存していないため、アカウントの変更もこの時点では自動保存しない。
     const location = parseUrl(state.url);
     state.service = createService(location ? location.hostname : '');
     state.service.accounts = [createAccount({ name: '標準ユーザー' })];
+    state.persisted = null;
   }
+  renderAccountSaveStatus(null);
   $('#service-name').value = state.service.name;
   $('#service-note').value = state.service.note || '';
 }
@@ -322,7 +351,10 @@ function renderValues() {
   const accountFields = fields.filter((field) => field.scope === FIELD_SCOPE.ACCOUNT);
   renderValueFields($('#shared-values'), sharedFields, state.service.sharedValues);
   $('#shared-empty').classList.toggle('hidden', sharedFields.length > 0);
-  renderAccountCards($('#account-list'), state.service.accounts, accountFields);
+  renderAccountCards($('#account-list'), state.service.accounts, accountFields, {
+    onChange: triggerAccountAutosave,
+    onRemove: triggerAccountAutosave,
+  });
 }
 
 // --- 保存 -------------------------------------------------------------------
@@ -388,10 +420,15 @@ async function save() {
   if (needsRule(state.service.matchRules, rule)) state.service.matchRules = state.service.matchRules.concat(rule);
 
   try {
-    const result = await request(MSG.SERVICE_SAVE, { service: state.service });
-    state.serviceId = result.serviceId;
-    const fresh = await request(MSG.SERVICE_GET, { serviceId: result.serviceId });
-    state.service = fresh.service;
+    // アカウントの自動保存と同じキューを通し、古い保存処理と新しい保存処理が
+    // 前後することなく順番に実行されるようにする。
+    await saveQueue.enqueue(async () => {
+      const result = await request(MSG.SERVICE_SAVE, { service: state.service });
+      state.serviceId = result.serviceId;
+      const fresh = await request(MSG.SERVICE_GET, { serviceId: result.serviceId });
+      state.service = fresh.service;
+      state.persisted = snapshotServiceExceptAccounts(state.service);
+    });
     $('#rule-note').classList.remove('hidden');
     renderValues();
     setStatus($('#save-status'), '保存しました。続けてアカウントを追加・編集できます。', 'ok');
@@ -445,6 +482,7 @@ $('#btn-add-field').addEventListener('click', () => {
 $('#btn-add-account').addEventListener('click', () => {
   state.service.accounts.push(createAccount({ name: `アカウント${state.service.accounts.length + 1}` }));
   renderValues();
+  triggerAccountAutosave();
 });
 
 $('#btn-rescan').addEventListener('click', async () => {
