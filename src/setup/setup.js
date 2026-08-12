@@ -6,7 +6,6 @@
 
 import { MSG, request } from '../lib/messages.js';
 import {
-  ACCOUNT_ROLE,
   FIELD_KIND,
   FIELD_SCOPE,
   changeFieldScope,
@@ -17,6 +16,7 @@ import {
 } from '../lib/model.js';
 import { parseUrl, ruleMatches, suggestRuleFromUrl } from '../lib/match.js';
 import { $, clear, el, fromTemplate, setStatus } from '../ui/dom.js';
+import { renderAccountCards, renderValueFields } from '../ui/account-editor.js';
 
 const params = new URLSearchParams(location.search);
 const state = {
@@ -53,8 +53,6 @@ async function boot() {
 
 async function loadService() {
   const isExisting = Boolean(state.serviceId);
-  $('#values-block').classList.toggle('hidden', isExisting);
-  $('#existing-note-block').classList.toggle('hidden', !isExisting);
   $('#rule-note').classList.toggle('hidden', !isExisting);
 
   const suggested = suggestRuleFromUrl(state.url);
@@ -63,14 +61,16 @@ async function loadService() {
   $('#rule-pathname').value = suggested.pathname;
   $('#rule-pathname-mode').value = suggested.pathnameMode;
 
-  if (!isExisting) {
+  if (isExisting) {
+    const result = await request(MSG.SERVICE_GET, { serviceId: state.serviceId });
+    state.service = result.service;
+  } else {
+    // 新規サービスも下書きとして最初から用意し、この画面だけで
+    // 入力項目・アカウントまで一気通貫で設定できるようにする。
     const location = parseUrl(state.url);
-    $('#service-name').value = location ? location.hostname : '';
-    $('#account-name').value = '標準ユーザー';
-    return;
+    state.service = createService(location ? location.hostname : '');
+    state.service.accounts = [createAccount({ name: '標準ユーザー' })];
   }
-  const result = await request(MSG.SERVICE_GET, { serviceId: state.serviceId });
-  state.service = result.service;
   $('#service-name').value = state.service.name;
   $('#service-note').value = state.service.note || '';
 }
@@ -86,7 +86,7 @@ async function loadScan() {
   }
   state.candidates = scan && Array.isArray(scan.candidates) ? scan.candidates : [];
   $('#no-candidates').classList.toggle('hidden', state.candidates.length > 0);
-  if (!state.service && scan && scan.title && !$('#service-name').value) {
+  if (!state.serviceId && scan && scan.title && !$('#service-name').value) {
     $('#service-name').value = scan.title.slice(0, 60);
   }
 }
@@ -122,7 +122,7 @@ function renderRows() {
   clear($('#field-rows'));
   state.rows = [];
 
-  if (state.service) {
+  if (state.serviceId) {
     const usedIndexes = new Set();
     for (const field of state.service.fields) {
       const index = matchCandidateIndex(field.locator);
@@ -206,12 +206,6 @@ function addRow(init = {}) {
 
   fillCandidateOptions(candidateSelect, init.candidateIndex, init.locator);
 
-  // 値の入力欄は行ごとに 1 つ作り、表示のたびに作り直さない（入力中の値が消えないように）。
-  const valueInput = el('input', {
-    className: 'value-input',
-    attrs: { type: 'text', autocomplete: 'off' },
-  });
-
   const record = {
     tr,
     fieldId: init.fieldId || null,
@@ -221,8 +215,15 @@ function addRow(init = {}) {
     scopeSelect,
     kindSelect,
     candidateSelect,
-    valueInput,
   };
+
+  // 区分（共通 / アカウント）の変更時は、既に入力済みの値を新しい区分側へ引き継ぐ。
+  // select 要素は change より先に input が発火するため、renderValues（下の汎用リスナー）が
+  // 区分を書き換えてしまう前に、ここで引き継ぎを済ませておく。
+  scopeSelect.addEventListener('input', () => {
+    const field = record.fieldId && state.service.fields.find((entry) => entry.id === record.fieldId);
+    if (field) changeFieldScope(state.service, field, scopeSelect.value);
+  });
 
   for (const node of [useInput, labelInput, scopeSelect, kindSelect]) {
     node.addEventListener('change', renderValues);
@@ -294,31 +295,34 @@ function resolveLocator(record) {
 
 // --- 値の入力欄 -------------------------------------------------------------
 
-function renderValues() {
-  if (state.service) return; // 既存サービスの値はサービス一覧側で編集する
-  const shared = $('#shared-values');
-  const account = $('#account-values');
-  clear(shared);
-  clear(account);
-  let sharedCount = 0;
-
+/**
+ * 「使用」がオンで表示名のある行から、下書きの項目一覧を組み立てる。
+ * 項目 ID は行ごとに一度決めたら変えない（値がアカウント / 共通値へ正しく紐付き続けるため）。
+ */
+function currentFields() {
+  const fields = [];
   for (const row of state.rows) {
     if (!row.useInput.checked) continue;
     const label = row.labelInput.value.trim();
     if (!label) continue;
-    row.valueInput.type = row.kindSelect.value === FIELD_KIND.SECRET ? 'password' : 'text';
-    const block = el('div', { className: 'value-row' }, [
-      el('div', { className: 'field-label', text: label }),
-      row.valueInput,
-    ]);
-    if (row.scopeSelect.value === FIELD_SCOPE.SHARED) {
-      shared.append(block);
-      sharedCount += 1;
-    } else {
-      account.append(block);
-    }
+    const locator = resolveLocator(row) || row.locator || {};
+    const field = createField({ label, scope: row.scopeSelect.value, kind: row.kindSelect.value, locator });
+    if (row.fieldId) field.id = row.fieldId;
+    else row.fieldId = field.id;
+    fields.push(field);
   }
-  $('#shared-empty').classList.toggle('hidden', sharedCount > 0);
+  return fields;
+}
+
+/** 入力項目テーブルの内容をサービスへ反映し、共通値 / アカウント欄を再描画する。 */
+function renderValues() {
+  const fields = currentFields();
+  state.service.fields = fields;
+  const sharedFields = fields.filter((field) => field.scope === FIELD_SCOPE.SHARED);
+  const accountFields = fields.filter((field) => field.scope === FIELD_SCOPE.ACCOUNT);
+  renderValueFields($('#shared-values'), sharedFields, state.service.sharedValues);
+  $('#shared-empty').classList.toggle('hidden', sharedFields.length > 0);
+  renderAccountCards($('#account-list'), state.service.accounts, accountFields);
 }
 
 // --- 保存 -------------------------------------------------------------------
@@ -344,12 +348,8 @@ async function save() {
     return;
   }
 
-  // 保存する項目と、それを入力した行の対応。保存後に項目 ID を行へ書き戻すために持つ。
-  const saved = [];
-  const sharedValues = {};
-  const accountValues = {};
+  const fields = [];
   const usedCandidates = new Set();
-
   for (const row of state.rows) {
     if (!row.useInput.checked) continue;
     const label = row.labelInput.value.trim();
@@ -370,63 +370,31 @@ async function save() {
       }
       usedCandidates.add(key);
     }
-    const field = createField({
-      label,
-      scope: row.scopeSelect.value,
-      kind: row.kindSelect.value,
-      locator,
-    });
+    const field = createField({ label, scope: row.scopeSelect.value, kind: row.kindSelect.value, locator });
     // 保存済みの項目は ID を保つ。ID が変わると登録済みの値が引き継がれない。
     if (row.fieldId) field.id = row.fieldId;
-    saved.push({ row, field });
-
-    const value = row.valueInput.value;
-    if (!state.service && value) {
-      if (field.scope === FIELD_SCOPE.SHARED) sharedValues[field.id] = value;
-      else accountValues[field.id] = value;
-    }
+    else row.fieldId = field.id;
+    fields.push(field);
   }
 
-  if (!saved.length) {
+  if (!fields.length) {
     setStatus($('#save-status'), '使用する項目を 1 つ以上選択してください。', 'error');
     return;
   }
-  const fields = saved.map((entry) => entry.field);
 
-  let service;
-  if (state.service) {
-    // 区分（共通 / アカウント）を変えた項目は、登録済みの値を新しい区分側へ移す。
-    for (const { row, field } of saved) {
-      const original = state.service.fields.find((entry) => entry.id === field.id);
-      if (original) changeFieldScope(state.service, original, row.scopeSelect.value);
-    }
-    service = { ...state.service, name, note: $('#service-note').value.trim(), fields };
-    if (needsRule(service.matchRules, rule)) service.matchRules = service.matchRules.concat(rule);
-  } else {
-    service = createService(name);
-    service.note = $('#service-note').value.trim();
-    service.matchRules = [rule];
-    service.fields = fields;
-    service.sharedValues = sharedValues;
-    service.accounts = [createAccount({
-      name: $('#account-name').value.trim() || '既定アカウント',
-      role: $('#account-role').value === ACCOUNT_ROLE.ADMIN ? ACCOUNT_ROLE.ADMIN : ACCOUNT_ROLE.NORMAL,
-      values: accountValues,
-    })];
-  }
+  state.service.name = name;
+  state.service.note = $('#service-note').value.trim();
+  state.service.fields = fields;
+  if (needsRule(state.service.matchRules, rule)) state.service.matchRules = state.service.matchRules.concat(rule);
 
   try {
-    const result = await request(MSG.SERVICE_SAVE, { service });
+    const result = await request(MSG.SERVICE_SAVE, { service: state.service });
     state.serviceId = result.serviceId;
     const fresh = await request(MSG.SERVICE_GET, { serviceId: result.serviceId });
     state.service = fresh.service;
-    // 続けて保存し直しても同じ項目として扱われるよう、保存した項目 ID を行へ戻す。
-    for (const { row, field } of saved) row.fieldId = field.id;
-    // 保存後は画面上に認証情報を残さない。
-    for (const row of state.rows) row.valueInput.value = '';
-    $('#values-block').classList.add('hidden');
-    $('#existing-note-block').classList.remove('hidden');
-    setStatus($('#save-status'), '保存しました。ログイン画面で拡張アイコンから入力できます。', 'ok');
+    $('#rule-note').classList.remove('hidden');
+    renderValues();
+    setStatus($('#save-status'), '保存しました。続けてアカウントを追加・編集できます。', 'ok');
   } catch (error) {
     setStatus($('#save-status'), error.message, 'error');
   }
@@ -471,6 +439,11 @@ $('#form-unlock').addEventListener('submit', async (event) => {
 $('#btn-add-field').addEventListener('click', () => {
   const row = addRow({ use: true });
   row.labelInput.focus();
+  renderValues();
+});
+
+$('#btn-add-account').addEventListener('click', () => {
+  state.service.accounts.push(createAccount({ name: `アカウント${state.service.accounts.length + 1}` }));
   renderValues();
 });
 

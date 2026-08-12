@@ -4,7 +4,6 @@
 
 import { MSG, request } from '../lib/messages.js';
 import {
-  ACCOUNT_ROLE,
   FIELD_KIND,
   FIELD_SCOPE,
   ORIGIN_MODE,
@@ -18,6 +17,7 @@ import {
   normalizeOrigin,
 } from '../lib/model.js';
 import { $, clear, el, setStatus } from '../ui/dom.js';
+import { renderAccountCards, renderValueFields, select, textInput } from '../ui/account-editor.js';
 
 const ORIGIN_MODE_LABELS = [
   [ORIGIN_MODE.EXACT, '完全一致'],
@@ -36,54 +36,12 @@ const KIND_LABELS = [
   [FIELD_KIND.TEXT, '通常'],
   [FIELD_KIND.SECRET, '秘密'],
 ];
-const ROLE_LABELS = [
-  [ACCOUNT_ROLE.NORMAL, '通常'],
-  [ACCOUNT_ROLE.ADMIN, '管理者'],
-];
 
 export function createServiceEditor({ onChanged }) {
   let service = null;
   // 一覧を素早く切り替えたとき、先に開始した取得が後から完了しても
   // 現在表示中のサービスを上書きしないための世代番号。
   let loadVersion = 0;
-
-  function select(options, value, onChange, className = '') {
-    const node = el('select', { className });
-    for (const [optionValue, label] of options) {
-      node.append(el('option', { text: label, attrs: { value: optionValue } }));
-    }
-    node.value = value;
-    node.addEventListener('change', () => onChange(node.value));
-    return node;
-  }
-
-  function textInput(value, onChange, attrs = {}) {
-    return el('input', {
-      attrs: { type: 'text', autocomplete: 'off', ...attrs },
-      props: { value: value || '' },
-      on: { input: (event) => onChange(event.target.value) },
-    });
-  }
-
-  function secretInput(value, onChange) {
-    const input = el('input', {
-      attrs: { type: 'password', autocomplete: 'off' },
-      props: { value: value || '' },
-      on: { input: (event) => onChange(event.target.value) },
-    });
-    const toggle = el('button', {
-      text: '表示',
-      attrs: { type: 'button' },
-      on: {
-        click: () => {
-          const visible = input.type === 'text';
-          input.type = visible ? 'password' : 'text';
-          toggle.textContent = visible ? '表示' : '隠す';
-        },
-      },
-    });
-    return el('div', { className: 'secret-row' }, [input, toggle]);
-  }
 
   /**
    * オリジン入力欄。入力途中の値を正規化してしまわないよう、
@@ -103,12 +61,6 @@ export function createServiceEditor({ onChanged }) {
       },
     });
     return input;
-  }
-
-  function valueInput(field, value, onChange) {
-    return field.kind === FIELD_KIND.SECRET
-      ? secretInput(value, onChange)
-      : textInput(value, onChange);
   }
 
   // --- 描画 -----------------------------------------------------------------
@@ -244,71 +196,14 @@ export function createServiceEditor({ onChanged }) {
   }
 
   function renderSharedValues() {
-    const container = $('#shared-values');
-    clear(container);
     const sharedFields = service.fields.filter((field) => field.scope === FIELD_SCOPE.SHARED);
     $('#shared-empty').classList.toggle('hidden', sharedFields.length > 0);
-    for (const field of sharedFields) {
-      container.append(el('div', {}, [
-        el('div', { className: 'field-label', text: field.label }),
-        valueInput(field, service.sharedValues[field.id], (value) => {
-          if (value) service.sharedValues[field.id] = value;
-          else delete service.sharedValues[field.id];
-        }),
-      ]));
-    }
+    renderValueFields($('#shared-values'), sharedFields, service.sharedValues);
   }
 
   function renderAccounts() {
-    const container = $('#account-list');
-    clear(container);
-    if (!service.accounts.length) {
-      container.append(el('p', { className: 'small muted', text: 'アカウントが登録されていません。' }));
-      return;
-    }
     const accountFields = service.fields.filter((field) => field.scope === FIELD_SCOPE.ACCOUNT);
-
-    for (const account of service.accounts) {
-      const card = el('div', { className: `account-card${account.role === ACCOUNT_ROLE.ADMIN ? ' admin' : ''}` });
-      const head = el('div', { className: 'row account-head' }, [
-        textInput(account.name, (value) => { account.name = value; }, { placeholder: 'アカウント名' }),
-        select(ROLE_LABELS, account.role, (value) => {
-          account.role = value;
-          card.classList.toggle('admin', value === ACCOUNT_ROLE.ADMIN);
-        }),
-        el('span', { className: 'spacer' }),
-        el('button', {
-          className: 'link danger',
-          text: '削除',
-          attrs: { type: 'button' },
-          on: {
-            click: () => {
-              service.accounts = service.accounts.filter((entry) => entry.id !== account.id);
-              renderAccounts();
-            },
-          },
-        }),
-      ]);
-      head.querySelector('input').classList.add('name');
-      card.append(head);
-
-      if (accountFields.length) {
-        const grid = el('div', { className: 'value-grid' });
-        for (const field of accountFields) {
-          grid.append(el('div', {}, [
-            el('div', { className: 'field-label', text: field.label }),
-            valueInput(field, account.values[field.id], (value) => {
-              if (value) account.values[field.id] = value;
-              else delete account.values[field.id];
-            }),
-          ]));
-        }
-        card.append(grid);
-      } else {
-        card.append(el('p', { className: 'small muted', text: 'アカウント区分の項目がありません。' }));
-      }
-      container.append(card);
-    }
+    renderAccountCards($('#account-list'), service.accounts, accountFields);
   }
 
   // --- 操作 -----------------------------------------------------------------

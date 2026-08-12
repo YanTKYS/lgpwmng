@@ -48,73 +48,75 @@
           <div id="editor-status" class="status"></div>
 
           <section class="block">
-            <div class="grid-2">
-              <div>
-                <div class="field-label">サービス名</div>
-                <input type="text" id="svc-name">
-              </div>
-              <div>
-                <div class="field-label">メモ</div>
-                <input type="text" id="svc-note">
-              </div>
-            </div>
-          </section>
-
-          <section class="block">
-            <div class="row block-head">
-              <h3>対象URL</h3>
-              <span class="spacer"></span>
-              <button type="button" id="btn-add-rule">条件を追加</button>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>オリジン（プロトコル + ホスト名 + ポート）</th>
-                  <th class="col-mode">判定</th>
-                  <th>パス</th>
-                  <th class="col-mode">判定</th>
-                  <th class="col-action"></th>
-                </tr>
-              </thead>
-              <tbody id="rule-rows"></tbody>
-            </table>
-          </section>
-
-          <section class="block">
-            <div class="row block-head">
-              <h3>入力項目</h3>
-              <span class="spacer"></span>
-              <span class="small muted">対象入力欄はログイン画面から設定するのが確実です。</span>
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>表示名</th>
-                  <th class="col-mode">区分</th>
-                  <th class="col-mode">種別</th>
-                  <th>対象入力欄の識別情報</th>
-                  <th class="col-action"></th>
-                </tr>
-              </thead>
-              <tbody id="field-rows"></tbody>
-            </table>
-            <p id="field-empty" class="small muted hidden">項目が登録されていません。ログイン画面で拡張アイコンから「このログイン画面を設定」を実行してください。</p>
-          </section>
-
-          <section class="block">
-            <h3>サービス共通値</h3>
-            <div id="shared-values" class="value-grid"></div>
-            <p id="shared-empty" class="small muted hidden">区分が「共通」の項目はありません。</p>
+            <div class="field-label">サービス名</div>
+            <input type="text" id="svc-name">
           </section>
 
           <section class="block">
             <div class="row block-head">
               <h3>アカウント</h3>
               <span class="spacer"></span>
-              <button type="button" id="btn-add-account">アカウントを追加</button>
+              <button type="button" id="btn-add-account">＋ アカウントを追加</button>
             </div>
             <div id="account-list" class="stack"></div>
           </section>
+
+          <details class="block service-settings">
+            <summary>サービス設定</summary>
+            <div class="stack service-settings-body">
+              <section>
+                <div class="field-label">メモ</div>
+                <input type="text" id="svc-note">
+              </section>
+
+              <section>
+                <div class="row block-head">
+                  <h3>対象URL</h3>
+                  <span class="spacer"></span>
+                  <button type="button" id="btn-add-rule">条件を追加</button>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>オリジン（プロトコル + ホスト名 + ポート）</th>
+                      <th class="col-mode">判定</th>
+                      <th>パス</th>
+                      <th class="col-mode">判定</th>
+                      <th class="col-action"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="rule-rows"></tbody>
+                </table>
+              </section>
+
+              <section>
+                <div class="row block-head">
+                  <h3>入力項目</h3>
+                  <span class="spacer"></span>
+                  <span class="small muted">対象入力欄はログイン画面から設定するのが確実です。</span>
+                </div>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>表示名</th>
+                      <th class="col-mode">区分</th>
+                      <th class="col-mode">種別</th>
+                      <th>対象入力欄の識別情報</th>
+                      <th class="col-action"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="field-rows"></tbody>
+                </table>
+                <p id="field-empty" class="small muted hidden">項目が登録されていません。ログイン画面で拡張アイコンから「このログイン画面を設定」を実行してください。</p>
+              </section>
+
+              <section>
+                <h3>サービス共通値</h3>
+                <div id="shared-values" class="value-grid"></div>
+                <p id="shared-empty" class="small muted hidden">区分が「共通」の項目はありません。</p>
+              </section>
+            </div>
+          </details>
         </div>
       </section>
     </div>
@@ -186,7 +188,7 @@
 
         <section class="block">
           <h3>この拡張について</h3>
-          <p class="small muted">lgpwmng v0.1.4 / 外部通信なし・端末内のみで動作します。認証情報は AES-GCM で暗号化して保存されます。</p>
+          <p class="small muted">lgpwmng v0.2.0 / 外部通信なし・端末内のみで動作します。認証情報は AES-GCM で暗号化して保存されます。</p>
         </section>
       </section>
     </div>

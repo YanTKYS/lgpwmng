@@ -85,31 +85,19 @@
         <p id="no-candidates" class="small muted hidden">入力欄の候補が取得できませんでした。ログイン画面を開いた状態で拡張アイコンから開き直してください。</p>
       </section>
 
-      <section class="block" id="values-block">
-        <h2>値の登録</h2>
-        <div class="grid-2">
-          <div class="stack">
-            <h3 class="small">サービス共通値</h3>
-            <div id="shared-values" class="stack"></div>
-            <p id="shared-empty" class="small muted">区分を「共通」にした項目がここに表示されます。</p>
-          </div>
-          <div class="stack">
-            <h3 class="small">アカウント</h3>
-            <div class="row">
-              <input type="text" id="account-name" placeholder="標準ユーザー">
-              <select id="account-role" class="mode">
-                <option value="normal">通常</option>
-                <option value="admin">管理者</option>
-              </select>
-            </div>
-            <div id="account-values" class="stack"></div>
-          </div>
-        </div>
-        <p class="small muted">アカウントの追加や値の変更は、保存後に「サービス一覧」から行えます。</p>
+      <section class="block">
+        <h2>サービス共通値</h2>
+        <div id="shared-values" class="value-grid"></div>
+        <p id="shared-empty" class="small muted hidden">区分を「共通」にした項目がここに表示されます。</p>
       </section>
 
-      <section class="block" id="existing-note-block">
-        <p class="small muted">既存サービスの設定を編集しています。値の変更は「サービス一覧」から行ってください。</p>
+      <section class="block">
+        <div class="row block-head">
+          <h2>アカウント</h2>
+          <span class="spacer"></span>
+          <button type="button" id="btn-add-account">＋ アカウントを追加</button>
+        </div>
+        <div id="account-list" class="stack"></div>
       </section>
 
       <footer class="page-footer">
