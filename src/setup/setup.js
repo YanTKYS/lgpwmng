@@ -14,12 +14,14 @@ import {
   createMatchRule,
   createService,
 } from '../lib/model.js';
-import { parseUrl, ruleMatches, suggestRuleFromUrl } from '../lib/match.js';
+import { ruleMatches, suggestRuleFromUrl } from '../lib/match.js';
+import { parseHttpUrl } from '../lib/url.js';
 import { describeFrameDescriptor, frameDescriptorKey } from '../lib/frame.js';
 import { $, clear, el, fromTemplate, setStatus } from '../ui/dom.js';
 import {
   createAccountAutosaveTrigger,
   createSaveQueue,
+  nextAccountName,
   renderAccountCards,
   renderSaveStatus,
   renderValueFields,
@@ -72,9 +74,15 @@ async function boot() {
   }
   $('#locked').classList.add('hidden');
   $('#main').classList.remove('hidden');
-  await loadService();
-  await loadScan();
-  renderRows();
+  // 読み込みに失敗しても「ロックされています」とは表示しない
+  // （サービスが見つからない等、アンロックしても解決しない原因があるため）。
+  try {
+    await loadService();
+    await loadScan();
+    renderRows();
+  } catch (error) {
+    setStatus($('#save-status'), error.message, 'error');
+  }
 }
 
 async function loadService() {
@@ -96,7 +104,7 @@ async function loadService() {
     // 新規サービスも下書きとして最初から用意し、この画面だけで
     // 入力項目・アカウントまで一気通貫で設定できるようにする。
     // ただしまだ一度も保存していないため、アカウントの変更もこの時点では自動保存しない。
-    const location = parseUrl(state.url);
+    const location = parseHttpUrl(state.url);
     state.service = createService(location ? location.hostname : '');
     state.service.accounts = [createAccount({ name: '標準ユーザー' })];
     state.persisted = null;
@@ -115,8 +123,7 @@ async function loadScan() {
       scan = null;
     }
   }
-  state.candidates = scan && Array.isArray(scan.candidates) ? scan.candidates : [];
-  updateScanStatusMessage(scan);
+  setCandidates(scan);
   if (!state.serviceId && scan && scan.title && !$('#service-name').value) {
     $('#service-name').value = scan.title.slice(0, 60);
   }
@@ -145,6 +152,23 @@ function updateScanStatusMessage(scan) {
     return;
   }
   node.classList.add('hidden');
+}
+
+/**
+ * 「対象入力欄」の選択肢（option 要素）の雛形。
+ * 内容は全行で同じなので候補 1 件につき 1 回だけ組み立て、各行へは複製して渡す。
+ * 行ごとに組み立て直すと、入力欄の多い画面で設定画面が固まる。
+ */
+let candidateOptions = null;
+
+/**
+ * 走査結果を取り込む。選択肢の雛形を作り直す必要があるため、
+ * 候補一覧の差し替えは必ずここを通す。
+ */
+function setCandidates(scan) {
+  state.candidates = scan && Array.isArray(scan.candidates) ? scan.candidates : [];
+  candidateOptions = null;
+  updateScanStatusMessage(scan);
 }
 
 // --- 行の生成 ---------------------------------------------------------------
@@ -309,17 +333,18 @@ function addRow(init = {}) {
     candidateSelect,
   };
 
-  // 区分（共通 / アカウント）の変更時は、既に入力済みの値を新しい区分側へ引き継ぐ。
-  // select 要素は change より先に input が発火するため、renderValues（下の汎用リスナー）が
-  // 区分を書き換えてしまう前に、ここで引き継ぎを済ませておく。
-  scopeSelect.addEventListener('input', () => {
+  // 区分（共通 / アカウント）の変更時は、既に入力済みの値を新しい区分側へ引き継いでから
+  // 描画し直す。引き継ぎには変更前の区分が要るため、renderValues より先に行う。
+  scopeSelect.addEventListener('change', () => {
     const field = record.fieldId && state.service.fields.find((entry) => entry.id === record.fieldId);
     if (field) changeFieldScope(state.service, field, scopeSelect.value);
+    renderValues();
   });
 
-  for (const node of [useInput, labelInput, scopeSelect, kindSelect]) {
+  // 値の入力欄は、項目の内容が確定したとき（change）だけ作り直す。
+  // 表示名のキー入力のたびに作り直すと、入力中のアカウント欄が毎回消えて作り直される。
+  for (const node of [useInput, labelInput, kindSelect]) {
     node.addEventListener('change', renderValues);
-    node.addEventListener('input', renderValues);
   }
 
   tr.querySelector('.highlight').addEventListener('click', async () => {
@@ -356,16 +381,24 @@ function addRow(init = {}) {
   return record;
 }
 
+function candidateOptionsFor(select) {
+  if (!candidateOptions) {
+    candidateOptions = document.createDocumentFragment();
+    candidateOptions.append(el('option', { text: '（未選択）', attrs: { value: '' } }));
+    state.candidates.forEach((candidate, index) => {
+      candidateOptions.append(el('option', { text: candidateLabel(candidate), attrs: { value: String(index) } }));
+    });
+  }
+  select.append(candidateOptions.cloneNode(true));
+}
+
 /**
  * 「対象入力欄」の選択肢を組み立てる。
  * 候補に無い入力欄（既存項目・再スキャンで見失った項目）は「keep」として選べるようにする。
  */
 function fillCandidateOptions(select, candidateIndex, keptLocator) {
   clear(select);
-  select.append(el('option', { text: '（未選択）', attrs: { value: '' } }));
-  state.candidates.forEach((candidate, index) => {
-    select.append(el('option', { text: candidateLabel(candidate), attrs: { value: String(index) } }));
-  });
+  candidateOptionsFor(select);
 
   if (Number.isInteger(candidateIndex) && candidateIndex >= 0) {
     select.value = String(candidateIndex);
@@ -527,7 +560,7 @@ async function save() {
  * 利用者が条件欄を書き換えた場合は、同じ条件が無い限り追加する。
  */
 function needsRule(existingRules, rule) {
-  const url = parseUrl(state.url);
+  const url = parseHttpUrl(state.url);
   const asSuggested = sameTarget(rule, suggestRuleFromUrl(state.url));
   return !existingRules.some((existing) => sameTarget(existing, rule)
     || (asSuggested && url && ruleMatches(existing, url)));
@@ -556,13 +589,15 @@ $('#form-unlock').addEventListener('submit', async (event) => {
 });
 
 $('#btn-add-field').addEventListener('click', () => {
+  if (!state.service) return;
   const row = addRow({ use: true });
   row.labelInput.focus();
   renderValues();
 });
 
 $('#btn-add-account').addEventListener('click', () => {
-  state.service.accounts.push(createAccount({ name: `アカウント${state.service.accounts.length + 1}` }));
+  if (!state.service) return;
+  state.service.accounts.push(createAccount({ name: nextAccountName(state.service.accounts) }));
   renderValues();
   triggerAccountAutosave();
 });
@@ -573,8 +608,7 @@ $('#btn-rescan').addEventListener('click', async () => {
     // 候補を差し替える前に、各行が今どの入力欄・フレームを指しているかを控える。
     const previousLocators = state.rows.map((row) => resolveLocator(row));
     const previousFrames = state.rows.map((row) => resolveFrame(row));
-    state.candidates = Array.isArray(scan.candidates) ? scan.candidates : [];
-    updateScanStatusMessage(scan);
+    setCandidates(scan);
     applyRescan(previousLocators, previousFrames);
     setStatus($('#save-status'), 'ページを再スキャンしました。', 'ok');
   } catch (error) {

@@ -1,6 +1,6 @@
 import { MSG, request } from '../lib/messages.js';
 import { ACCOUNT_ROLE } from '../lib/model.js';
-import { parseUrl } from '../lib/match.js';
+import { parseHttpUrl } from '../lib/url.js';
 import { $, clear, el, setStatus } from '../ui/dom.js';
 
 const views = {
@@ -45,7 +45,7 @@ async function boot() {
  * http と https は別サービスとして扱うため、プロトコル（とポート）を含めて表示する。
  */
 function showPageLocation() {
-  const url = parseUrl(state.url);
+  const url = parseHttpUrl(state.url);
   $('#page-location').textContent = url ? `${url.origin}${url.pathname}` : '（対応していないページ）';
   return url;
 }

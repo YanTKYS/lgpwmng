@@ -29,6 +29,19 @@ export function pageAgent(action, payload) {
     { keys: ['利用者id', 'ユーザーid', 'ユーザid', 'ログインid', '利用者番号', 'loginid', 'userid', 'username', 'uid', 'account'], label: 'ユーザーID', kind: 'text' },
   ];
 
+  // 入力の直前に、実行中のページ（このフレーム）自身の URL が登録条件に一致するか
+  // 確認する。background 側の確認とページ遷移が競合しても、ここで確実に中止できる。
+  //
+  // frameCheck が指定されている場合（子フレームへの入力）は、このフレーム自身の URL を、
+  // 登録時に確認したフレーム URL（origin + pathname）と比較する。
+  // トップフレームへの入力は、サービスの matchRules で確認する。
+  if (action === 'fill') {
+    const urlOk = payload.frameCheck
+      ? frameSelfMatches(payload.frameCheck)
+      : urlMatchesRules(payload.matchRules);
+    if (!urlOk) return { error: 'url-mismatch', url: location.href };
+  }
+
   // 入力欄と、その識別情報（locator）を 1 回だけ組み立てて使い回す。
   // 項目ごとに組み立て直すと、入力欄の多い画面で画面が固まることがある。
   const targets = collectTargets();
@@ -60,20 +73,6 @@ export function pageAgent(action, payload) {
   }
 
   if (action === 'fill') {
-    // 入力の直前に、実行中のページ（このフレーム）自身の URL が登録条件に
-    // 一致するか確認する。background 側の確認とページ遷移が競合しても、
-    // ここで確実に中止できる。
-    //
-    // frameCheck が指定されている場合（子フレームへの入力）は、このフレーム
-    // 自身の URL を、登録時に確認したフレーム URL（origin + pathname）と比較する。
-    // トップフレームへの入力は、従来どおりサービスの matchRules で確認する。
-    const urlOk = payload.frameCheck
-      ? frameSelfMatches(payload.frameCheck)
-      : urlMatchesRules(payload.matchRules);
-    if (!urlOk) {
-      return { error: 'url-mismatch', url: location.href };
-    }
-
     const used = new Set();
     const results = [];
     // ログインボタンの押下は行わない。値の入力のみを担当する。
@@ -83,12 +82,13 @@ export function pageAgent(action, payload) {
         results.push({ fieldId: entry.fieldId, label: entry.label, status: 'not-found' });
         continue;
       }
+      // 一度どれかの項目に割り当てた入力欄は、入力の可否によらず他の項目へ渡さない。
+      used.add(found.element);
       // 秘密情報は、入力欄の特定が確実な場合のみ入力する。
       if (found.weak && entry.kind === 'secret') {
         results.push({ fieldId: entry.fieldId, label: entry.label, status: 'weak-skipped' });
         continue;
       }
-      used.add(found.element);
       try {
         applyValue(found.element, entry.value);
         results.push({
@@ -388,8 +388,9 @@ export function pageAgent(action, payload) {
     }
     dispatch(element, 'input');
     dispatch(element, 'change');
+    // blur() 自体が blur / focusout を発火する。ここで合成 blur を重ねて送ると、
+    // 入力チェックを onblur で行う業務システムで検証が二重に走ってしまう。
     element.blur();
-    dispatch(element, 'blur');
   }
 
   function selectOption(element, value) {
