@@ -54,10 +54,6 @@ select.mode {
   margin-left: 6px;
 }
 
-.value-row .field-label {
-  margin-bottom: 0;
-}
-
 .page-footer {
   display: flex;
   align-items: center;

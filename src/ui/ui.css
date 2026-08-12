@@ -162,6 +162,47 @@ button.danger {
   color: var(--fg);
 }
 
+.value-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.account-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.account-card.admin {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+}
+
+.account-head {
+  gap: 8px;
+}
+
+.account-head .name {
+  max-width: 260px;
+}
+
+.account-head select {
+  width: 110px;
+}
+
+.secret-row {
+  display: flex;
+  gap: 4px;
+}
+
+.secret-row input {
+  flex: 1;
+}
+
 .notice {
   padding: 6px 8px;
   border: 1px solid var(--warn-border);

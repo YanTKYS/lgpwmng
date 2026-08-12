@@ -127,10 +127,36 @@ body {
   gap: 10px;
 }
 
-.value-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+.service-settings summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+.service-settings summary:hover {
+  color: var(--accent);
+}
+
+.service-settings[open] summary {
+  margin-bottom: 4px;
+}
+
+.service-settings-body {
+  padding-top: 4px;
+}
+
+.service-settings-body section {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.service-settings-body section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
 }
 
 .col-mode { width: 130px; }
@@ -152,41 +178,6 @@ td select, td input {
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
   margin-top: 4px;
-}
-
-.account-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.account-card.admin {
-  border-color: var(--warn-border);
-  background: var(--warn-bg);
-}
-
-.account-head {
-  gap: 8px;
-}
-
-.account-head .name {
-  max-width: 260px;
-}
-
-.account-head select {
-  width: 110px;
-}
-
-.secret-row {
-  display: flex;
-  gap: 4px;
-}
-
-.secret-row input {
-  flex: 1;
 }
 
 .narrow {
