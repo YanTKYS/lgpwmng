@@ -138,20 +138,61 @@ export function renderAccountCards(container, accounts, accountFields, { onRemov
 // --- 自動保存 ----------------------------------------------------------------
 
 /**
- * サービスのうち「アカウント以外」（名前・URL条件・入力項目・サービス共通値）の
- * 最小限のスナップショットを取る。自動保存はこの内容を変えず、accounts だけを
- * 差し替えて送るために使う。
+ * サービス全体のディープクローン。保存直後のスナップショット（自動保存の基準）や、
+ * 明示保存をクリックした時点の内容を固定するために使う。
  */
-export function snapshotServiceExceptAccounts(service) {
-  return {
-    id: service.id,
-    name: service.name,
-    note: service.note,
-    matchRules: JSON.parse(JSON.stringify(service.matchRules)),
-    fields: JSON.parse(JSON.stringify(service.fields)),
-    sharedValues: JSON.parse(JSON.stringify(service.sharedValues)),
-    createdAt: service.createdAt,
-  };
+export function snapshotService(service) {
+  return JSON.parse(JSON.stringify(service));
+}
+
+/**
+ * サービス設定（入力項目の区分変更・削除など）の未保存の変更が、アカウントの
+ * 自動保存に混ざらないようにする。
+ *
+ * changeFieldScope() や項目削除は、入力欄への即時フィードバックのために
+ * account.values / sharedValues を画面上ですぐに書き換える。しかしこれらは
+ * 「入力項目」＝サービス設定の一部であり、明示保存されるまでは Vault へ
+ * 反映してはならない。そこで、直前保存時の項目一覧（base.fields）と現在の
+ * 項目一覧（live.fields）を比較し、区分または存在が変わった項目（＝まだ
+ * 保存されていない変更がある項目）については値を直前保存時のまま送り、
+ * 変わっていない項目の値・アカウント名・区分は現在の内容をそのまま送る。
+ */
+export function buildSafeAccountsPayload(base, live) {
+  const baseFieldsById = new Map((base.fields || []).map((field) => [field.id, field]));
+  const dirtyFieldIds = new Set();
+  for (const field of live.fields || []) {
+    const original = baseFieldsById.get(field.id);
+    if (!original || original.scope !== field.scope) dirtyFieldIds.add(field.id);
+  }
+  for (const field of base.fields || []) {
+    if (!(live.fields || []).some((entry) => entry.id === field.id)) dirtyFieldIds.add(field.id);
+  }
+
+  const baseAccountsById = new Map((base.accounts || []).map((account) => [account.id, account]));
+
+  return (live.accounts || []).map((account) => {
+    const baseAccount = baseAccountsById.get(account.id);
+    const values = {};
+    const seen = new Set();
+    for (const [fieldId, value] of Object.entries(account.values || {})) {
+      seen.add(fieldId);
+      if (dirtyFieldIds.has(fieldId)) {
+        // 未保存の項目変更の影響を受けた値は、直前保存時の値のまま据え置く。
+        if (baseAccount && baseAccount.values[fieldId] !== undefined) values[fieldId] = baseAccount.values[fieldId];
+      } else {
+        values[fieldId] = value;
+      }
+    }
+    // 未保存の変更（区分変更 / 削除）によって現在の account.values から
+    // 消えてしまった値を、直前保存時の内容から復元する。
+    if (baseAccount) {
+      for (const [fieldId, value] of Object.entries(baseAccount.values || {})) {
+        if (seen.has(fieldId) || !dirtyFieldIds.has(fieldId)) continue;
+        values[fieldId] = value;
+      }
+    }
+    return { ...account, values };
+  });
 }
 
 /**
@@ -173,28 +214,32 @@ export function createSaveQueue() {
 
 /**
  * アカウントの変更を自動保存するトリガーを作る。
- * 「アカウント以外」の項目は getPersistedBase() が返す直前保存済みの状態のまま送り、
- * accounts だけ getService().accounts の最新値を都度読み直して送る。
+ * 「アカウント以外」の項目（サービス設定）は getPersistedBase() が返す直前保存済みの
+ * 状態のまま送る。accounts は getService() の最新の状態から、未保存のサービス設定
+ * 変更の影響（buildSafeAccountsPayload）を取り除いたうえで送る。
  *
  * getPersistedBase() が null を返す間（＝まだ一度も明示保存されていない新規サービス）
  * は何もしない。
  */
-export function createAccountAutosaveTrigger({ getService, getPersistedBase, saveQueue, sendSave, onStatus }) {
+export function createAccountAutosaveTrigger({ getService, getPersistedBase, setPersistedBase, saveQueue, sendSave, onStatus }) {
   let outstanding = 0;
   return function trigger() {
     const service = getService();
     const baseAtTrigger = getPersistedBase();
     if (!service || !baseAtTrigger) return;
-    const targetService = service;
     const targetId = service.id;
     outstanding += 1;
     onStatus('saving');
     saveQueue.enqueue(async () => {
-      // 実行時点の最新の基準値を読み直す（間に明示保存が挟まっていれば反映するため）。
+      // 実行時点の最新の状態を読み直す（間に明示保存や他の変更が挟まっていれば反映するため）。
       const base = getPersistedBase();
-      if (!base || base.id !== targetId) return; // 別のサービスへ切り替わっていた場合は何もしない
-      const payload = { ...base, accounts: targetService.accounts };
-      await sendSave(payload);
+      const live = getService();
+      if (!base || base.id !== targetId || !live || live.id !== targetId) return; // 別のサービスへ切り替わっていた場合は何もしない
+      const accounts = buildSafeAccountsPayload(base, live);
+      await sendSave({ ...base, accounts });
+      // 保存できた accounts の内容を、以後の自動保存が比較・送信する基準として反映する。
+      // 「アカウント以外」の内容（サービス設定）はこの自動保存では変えていないので据え置く。
+      if (setPersistedBase) setPersistedBase({ ...base, accounts });
     }).then(
       () => {
         outstanding -= 1;

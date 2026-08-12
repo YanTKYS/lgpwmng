@@ -22,7 +22,7 @@ import {
   renderAccountCards,
   renderSaveStatus,
   renderValueFields,
-  snapshotServiceExceptAccounts,
+  snapshotService,
 } from '../ui/account-editor.js';
 
 const params = new URLSearchParams(location.search);
@@ -47,6 +47,7 @@ function renderAccountSaveStatus(status, error) {
 const triggerAccountAutosave = createAccountAutosaveTrigger({
   getService: () => state.service,
   getPersistedBase: () => state.persisted,
+  setPersistedBase: (base) => { state.persisted = base; },
   saveQueue,
   sendSave: (payload) => request(MSG.SERVICE_SAVE, { service: payload }),
   onStatus: renderAccountSaveStatus,
@@ -89,7 +90,7 @@ async function loadService() {
     const result = await request(MSG.SERVICE_GET, { serviceId: state.serviceId });
     state.service = result.service;
     // 既に保存済みのサービスなので、この時点からアカウントの変更は自動保存する。
-    state.persisted = snapshotServiceExceptAccounts(state.service);
+    state.persisted = snapshotService(state.service);
   } else {
     // 新規サービスも下書きとして最初から用意し、この画面だけで
     // 入力項目・アカウントまで一気通貫で設定できるようにする。
@@ -419,15 +420,18 @@ async function save() {
   state.service.fields = fields;
   if (needsRule(state.service.matchRules, rule)) state.service.matchRules = state.service.matchRules.concat(rule);
 
+  // クリックした時点の内容で固定する。キュー内の先行する自動保存を待つ間に
+  // さらに編集されても、保存対象がその分だけ変わってしまわないようにするため。
+  const snapshot = snapshotService(state.service);
   try {
     // アカウントの自動保存と同じキューを通し、古い保存処理と新しい保存処理が
     // 前後することなく順番に実行されるようにする。
     await saveQueue.enqueue(async () => {
-      const result = await request(MSG.SERVICE_SAVE, { service: state.service });
+      const result = await request(MSG.SERVICE_SAVE, { service: snapshot });
       state.serviceId = result.serviceId;
       const fresh = await request(MSG.SERVICE_GET, { serviceId: result.serviceId });
       state.service = fresh.service;
-      state.persisted = snapshotServiceExceptAccounts(state.service);
+      state.persisted = snapshotService(state.service);
     });
     $('#rule-note').classList.remove('hidden');
     renderValues();
