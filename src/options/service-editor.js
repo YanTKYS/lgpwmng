@@ -24,7 +24,7 @@ import {
   renderSaveStatus,
   renderValueFields,
   select,
-  snapshotServiceExceptAccounts,
+  snapshotService,
   textInput,
 } from '../ui/account-editor.js';
 
@@ -65,6 +65,7 @@ export function createServiceEditor({ onChanged }) {
   const triggerAccountAutosave = createAccountAutosaveTrigger({
     getService: () => service,
     getPersistedBase: () => persisted,
+    setPersistedBase: (base) => { persisted = base; },
     saveQueue,
     sendSave: (payload) => request(MSG.SERVICE_SAVE, { service: payload }),
     onStatus: renderAccountSaveStatus,
@@ -280,17 +281,18 @@ export function createServiceEditor({ onChanged }) {
       setStatus($('#editor-status'), problem, 'error');
       return;
     }
-    const targetService = service;
+    // クリックした時点の内容で固定する。キュー内の先行する自動保存を待つ間に
+    // さらに編集されても、保存対象がその分だけ変わってしまわないようにするため。
+    const snapshot = snapshotService(service);
     try {
       // アカウントの自動保存と同じキューを通し、古い保存処理と新しい保存処理が
       // 前後することなく順番に実行されるようにする。
       await saveQueue.enqueue(async () => {
-        const result = await request(MSG.SERVICE_SAVE, { service: targetService });
-        targetService.id = result.serviceId;
-        persisted = snapshotServiceExceptAccounts(targetService);
+        await request(MSG.SERVICE_SAVE, { service: snapshot });
+        persisted = snapshot;
       });
       // 一覧を再読込した後に結果を表示する（再読込で状態表示がクリアされるため）。
-      await onChanged(targetService.id);
+      await onChanged(snapshot.id);
       setStatus($('#editor-status'), '保存しました。', 'ok');
     } catch (error) {
       setStatus($('#editor-status'), error.message, 'error');
@@ -319,7 +321,7 @@ export function createServiceEditor({ onChanged }) {
       if (version !== loadVersion) return;
       service = result.service;
       // 既に保存済みのサービスなので、この時点からアカウントの変更は自動保存する。
-      persisted = snapshotServiceExceptAccounts(service);
+      persisted = snapshotService(service);
       renderAccountSaveStatus(null);
       setStatus($('#editor-status'), '');
       render();
