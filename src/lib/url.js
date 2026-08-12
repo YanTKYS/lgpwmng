@@ -34,3 +34,17 @@ export function normalizePathname(pathname) {
   const trimmed = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
   return trimmed === '' ? '/' : trimmed;
 }
+
+/**
+ * 設定画面で入力されたパス条件を、URL の pathname と比較できる形へ整える。
+ * 先頭の `/` を補い、クエリ（`?`）以降を落とす。
+ * 例: 'login' -> '/login', '/app/' -> '/app', '/app?id=1' -> '/app'
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+export function normalizeRulePathname(value) {
+  const raw = String(value || '').trim().split(/[?#]/)[0];
+  if (!raw) return '/';
+  return normalizePathname(raw.startsWith('/') ? raw : `/${raw}`);
+}

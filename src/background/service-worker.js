@@ -223,11 +223,17 @@ async function scanPage(tabId) {
 
 /** 強調表示。対象入力欄が属するフレームを再特定してから、そのフレーム内でだけ実行する。 */
 async function runHighlight({ tabId, locator, frame }) {
-  const resolution = await resolveFrame(tabId, frame);
-  if (resolution.status === 'not-found') return { ok: false, reason: 'frame-not-found' };
-  if (resolution.status === 'ambiguous') return { ok: false, reason: 'frame-ambiguous' };
-  if (resolution.status === 'error') return { ok: false, reason: 'frame-error' };
-  return runPageAgentInFrame(tabId, resolution.frameId, 'highlight', { locator });
+  const descriptor = normalizeFrameDescriptor(frame);
+  let frameId = 0;
+  if (!descriptor.top) {
+    const frames = await probeFrames(tabId);
+    if (!frames) return { ok: false, reason: 'frame-error' };
+    const frameIds = matchFrames(frames, descriptor);
+    if (!frameIds.length) return { ok: false, reason: 'frame-not-found' };
+    if (frameIds.length > 1) return { ok: false, reason: 'frame-ambiguous' };
+    frameId = frameIds[0];
+  }
+  return runPageAgentInFrame(tabId, frameId, 'highlight', { locator });
 }
 
 /**
@@ -263,72 +269,77 @@ async function runFill({ tabId, serviceId, accountId, confirmAdmin }) {
 
 /**
  * entries をフレームごとにグループ化し、それぞれ対象フレームを再特定してから入力する。
- * トップフレーム宛ての項目は従来どおりトップフレームへ入力する。
- *
- * 対象フレームが見つからない、または同程度に一致するフレームが複数ある場合は、
- * 「トップURLが一致しているから任意のフレームへ入力してよい」とはせず、
- * 秘密項目は入力しない（fail closed）。通常項目は候補の先頭で弱一致として試す
- * （既存の locator の弱一致と同じ考え方）。
+ * トップフレーム宛ての項目はトップフレームへ入力する。
  */
 async function fillAcrossFrames(tabId, entries, matchRules, serviceName) {
-  const topEntries = entries.filter((entry) => normalizeFrameDescriptor(entry.frame).top);
-  const frameEntries = entries.filter((entry) => !normalizeFrameDescriptor(entry.frame).top);
-  const results = [];
-
-  if (topEntries.length) {
-    const topResult = await runPageAgentInFrame(tabId, 0, 'fill', { entries: topEntries, matchRules });
-    if (topResult && topResult.error === 'url-mismatch') {
-      throw new Error(`入力を中止しました。現在のページは「${serviceName}」の登録URLと一致しません。`);
-    }
-    results.push(...resolveFrameFillResult(topResult, topEntries));
-  }
-
+  const topEntries = [];
   // 同じフレームを指す項目はまとめてフレーム再特定・入力を行う。
   const groups = new Map();
-  for (const entry of frameEntries) {
+  for (const entry of entries) {
     const descriptor = normalizeFrameDescriptor(entry.frame);
+    if (descriptor.top) {
+      topEntries.push(entry);
+      continue;
+    }
     const key = frameDescriptorKey(descriptor);
     if (!groups.has(key)) groups.set(key, { descriptor, entries: [] });
     groups.get(key).entries.push(entry);
   }
 
-  for (const { descriptor, entries: groupEntries } of groups.values()) {
-    const resolution = await resolveFrame(tabId, descriptor);
-
-    if (resolution.status === 'not-found' || resolution.status === 'error') {
-      for (const entry of groupEntries) {
-        results.push({ fieldId: entry.fieldId, label: entry.label, status: 'frame-not-found' });
-      }
-      continue;
+  const results = [];
+  if (topEntries.length) {
+    const topResult = await runPageAgentInFrame(tabId, 0, 'fill', { entries: topEntries, matchRules });
+    if (topResult && topResult.error === 'url-mismatch') {
+      throw new Error(`入力を中止しました。現在のページは「${serviceName}」の登録URLと一致しません。`);
     }
+    results.push(...toFillResults(topResult, topEntries));
+  }
 
-    if (resolution.status === 'ambiguous') {
-      const secretEntries = groupEntries.filter((entry) => entry.kind === 'secret');
-      const otherEntries = groupEntries.filter((entry) => entry.kind !== 'secret');
-      for (const entry of secretEntries) {
-        results.push({ fieldId: entry.fieldId, label: entry.label, status: 'frame-not-found' });
-      }
-      if (otherEntries.length) {
-        const frameCheck = { origin: descriptor.origin, pathname: descriptor.pathname };
-        const frameResult = await runPageAgentInFrameSafely(tabId, resolution.frameIds[0], 'fill', { entries: otherEntries, frameCheck });
-        results.push(...forceWeak(resolveFrameFillResult(frameResult, otherEntries)));
-      }
-      continue;
+  if (groups.size) {
+    // フレーム構成の確認は入力 1 回につき 1 度だけ行い、全グループで使い回す。
+    const frames = await probeFrames(tabId);
+    for (const group of groups.values()) {
+      results.push(...await fillFrameGroup(tabId, frames, group));
     }
-
-    const frameCheck = { origin: descriptor.origin, pathname: descriptor.pathname };
-    const frameResult = await runPageAgentInFrameSafely(tabId, resolution.frameId, 'fill', { entries: groupEntries, frameCheck });
-    if (frameResult && frameResult.error === 'url-mismatch') {
-      // 対象フレームがその後に遷移した等で、フレーム自身の URL 再確認に失敗した。
-      for (const entry of groupEntries) {
-        results.push({ fieldId: entry.fieldId, label: entry.label, status: 'not-found' });
-      }
-      continue;
-    }
-    results.push(...resolveFrameFillResult(frameResult, groupEntries));
   }
 
   return sortByEntryOrder(results, entries);
+}
+
+/**
+ * 同じフレームを指す項目をまとめて入力する。
+ *
+ * 対象フレームが見つからない、または同程度に一致するフレームが複数ある場合は、
+ * 「トップURLが一致しているから任意のフレームへ入力してよい」とはせず、
+ * 秘密項目は入力しない（fail closed）。通常項目は候補の先頭で弱一致として試す
+ * （既存の locator の弱一致と同じ考え方）。
+ *
+ * @param {Array|null} frames probeFrames の結果。null は確認できなかったことを表す。
+ */
+async function fillFrameGroup(tabId, frames, { descriptor, entries }) {
+  const frameIds = frames ? matchFrames(frames, descriptor) : [];
+  if (!frameIds.length) return entries.map((entry) => statusFor(entry, 'frame-not-found'));
+
+  // フレームを一つに絞り込めない場合、秘密項目は入力せず、通常項目のみ先頭のフレームで試す。
+  const ambiguous = frameIds.length > 1;
+  const skipped = ambiguous
+    ? entries.filter((entry) => entry.kind === 'secret').map((entry) => statusFor(entry, 'frame-not-found'))
+    : [];
+  const targets = ambiguous ? entries.filter((entry) => entry.kind !== 'secret') : entries;
+  if (!targets.length) return skipped;
+
+  const frameCheck = { origin: descriptor.origin, pathname: descriptor.pathname };
+  const frameResult = await runPageAgentInFrameSafely(tabId, frameIds[0], 'fill', { entries: targets, frameCheck });
+  if (frameResult && frameResult.error === 'url-mismatch') {
+    // 対象フレームがその後に遷移した等で、フレーム自身の URL 再確認に失敗した。
+    return skipped.concat(targets.map((entry) => statusFor(entry, 'not-found')));
+  }
+  const filled = toFillResults(frameResult, targets);
+  return skipped.concat(ambiguous ? forceWeak(filled) : filled);
+}
+
+function statusFor(entry, status) {
+  return { fieldId: entry.fieldId, label: entry.label, status };
 }
 
 /**
@@ -342,9 +353,10 @@ function sortByEntryOrder(results, entries) {
     || { fieldId: entry.fieldId, label: entry.label, status: 'error' });
 }
 
-function resolveFrameFillResult(frameResult, groupEntries) {
+/** ページから結果が返らなかった項目は「入力に失敗」として扱う。 */
+function toFillResults(frameResult, entries) {
   if (!frameResult || !Array.isArray(frameResult.results)) {
-    return groupEntries.map((entry) => ({ fieldId: entry.fieldId, label: entry.label, status: 'error' }));
+    return entries.map((entry) => statusFor(entry, 'error'));
   }
   return frameResult.results;
 }
@@ -355,32 +367,32 @@ function forceWeak(results) {
 }
 
 /**
- * frame 記述子から、現在のタブでの対象 frameId を再特定する。
- * トップフレームの記述子（フレーム情報の無い旧データを含む）は probe 不要で
- * 即座に frameId 0 とみなす。
- *
- * @returns {{status: 'ok', frameId: number} | {status: 'ambiguous', frameIds: number[]} | {status: 'not-found'} | {status: 'error'}}
+ * タブ内のフレーム構成を確認する。
+ * @returns {Promise<Array<{frameId: number, result: {url: string, frameName: string}}>|null>}
+ *   確認できなかった場合は null。
  */
-async function resolveFrame(tabId, rawDescriptor) {
-  const descriptor = normalizeFrameDescriptor(rawDescriptor);
-  if (descriptor.top) return { status: 'ok', frameId: 0 };
-
-  let probes;
+async function probeFrames(tabId) {
   try {
-    probes = await runPageAgentAllFrames(tabId, 'probe', {});
+    return await runPageAgentAllFrames(tabId, 'probe', {});
   } catch {
-    return { status: 'error' };
+    return null;
   }
+}
 
-  let matches = probes.filter((entry) => entry.frameId !== 0 && entry.result
+/**
+ * 登録済みの frame 記述子に該当する frameId を、現在のフレーム構成から探す。
+ * URL（origin + pathname）で絞り、それでも複数残る場合はフレーム名で絞る。
+ *
+ * @returns {number[]} 該当する frameId。0 件なら見つからず、2 件以上なら絞り込めていない。
+ */
+function matchFrames(frames, descriptor) {
+  const matches = frames.filter((entry) => entry.frameId !== 0 && entry.result
     && frameDescriptorMatchesProbe(descriptor, entry.result.url));
   if (matches.length > 1 && descriptor.name) {
     const byName = matches.filter((entry) => (entry.result.frameName || '') === descriptor.name);
-    if (byName.length) matches = byName;
+    if (byName.length) return byName.map((entry) => entry.frameId);
   }
-  if (matches.length === 1) return { status: 'ok', frameId: matches[0].frameId };
-  if (matches.length > 1) return { status: 'ambiguous', frameIds: matches.map((entry) => entry.frameId) };
-  return { status: 'not-found' };
+  return matches.map((entry) => entry.frameId);
 }
 
 /**

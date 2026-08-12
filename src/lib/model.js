@@ -11,6 +11,7 @@
  */
 
 import { normalizeFrameDescriptor } from './frame.js';
+import { normalizeRulePathname } from './url.js';
 
 /**
  * 1: hostname + pathname
@@ -63,6 +64,9 @@ export function createService(name = '') {
  * origin が確定していない場合（schemaVersion 1 の hostname 形式）は、
  * プロトコルを推測せずに legacy として保持する。protocol 未確定のルールは
  * どの URL にも一致しないため、確定するまで認証情報が入力されることはない。
+ *
+ * パスは常に `/` で始まる形へ整える。設定画面で `/` を付け忘れて入力した条件が
+ * どの URL にも一致しなくなるのを防ぐため。
  */
 export function createMatchRule(partial = {}) {
   const legacy = readLegacy(partial);
@@ -71,7 +75,7 @@ export function createMatchRule(partial = {}) {
     id: newId('rule'),
     origin,
     originMode: resolveOriginMode(partial, legacy),
-    pathname: partial.pathname || '',
+    pathname: normalizeRulePathname(partial.pathname),
     pathnameMode: partial.pathnameMode || PATHNAME_MODE.EXACT,
   };
   // origin が確定していれば legacy は不要になる。

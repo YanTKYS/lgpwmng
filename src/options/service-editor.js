@@ -17,6 +17,7 @@ import {
   normalizeOrigin,
 } from '../lib/model.js';
 import { describeFrameDescriptor } from '../lib/frame.js';
+import { normalizeRulePathname } from '../lib/url.js';
 import { $, clear, el, setStatus } from '../ui/dom.js';
 import {
   createAccountAutosaveTrigger,
@@ -48,7 +49,11 @@ const KIND_LABELS = [
   [FIELD_KIND.SECRET, '秘密'],
 ];
 
-export function createServiceEditor({ onChanged }) {
+/**
+ * @param {Function} onChanged        サービスの保存 / 削除後に呼ばれる（一覧と編集内容を読み直す）
+ * @param {Function} [onAccountsSaved] アカウントの自動保存後に呼ばれる（一覧の表示だけを更新する）
+ */
+export function createServiceEditor({ onChanged, onAccountsSaved }) {
   let service = null;
   // 一覧を素早く切り替えたとき、先に開始した取得が後から完了しても
   // 現在表示中のサービスを上書きしないための世代番号。
@@ -69,7 +74,13 @@ export function createServiceEditor({ onChanged }) {
     getPersistedBase: () => persisted,
     setPersistedBase: (base) => { persisted = base; },
     saveQueue,
-    sendSave: (payload) => request(MSG.SERVICE_SAVE, { service: payload }),
+    sendSave: async (payload) => {
+      const result = await request(MSG.SERVICE_SAVE, { service: payload });
+      // 一覧のアカウント件数が保存内容とずれたままにならないようにする。
+      // 編集中の内容には触れないため、入力途中でも影響しない。
+      if (onAccountsSaved) onAccountsSaved();
+      return result;
+    },
     onStatus: renderAccountSaveStatus,
   });
 
@@ -87,6 +98,24 @@ export function createServiceEditor({ onChanged }) {
           input.value = rule.origin;
           // オリジンが確定すれば、protocol 未確定の旧条件は不要になる。
           if (rule.origin) delete rule.legacy;
+        },
+      },
+    });
+    return input;
+  }
+
+  /**
+   * パス入力欄。`/` を付け忘れた条件はどの URL にも一致しないため、
+   * 確定（フォーカスが外れた時点）で補い、その結果を画面へも反映する。
+   */
+  function pathnameInput(rule) {
+    const input = el('input', {
+      attrs: { type: 'text', autocomplete: 'off', placeholder: '/login' },
+      props: { value: rule.pathname || '' },
+      on: {
+        change: () => {
+          rule.pathname = normalizeRulePathname(input.value);
+          input.value = rule.pathname;
         },
       },
     });
@@ -122,7 +151,7 @@ export function createServiceEditor({ onChanged }) {
         el('td', { className: 'col-mode' }, [
           select(ORIGIN_MODE_LABELS, rule.originMode, (value) => { rule.originMode = value; }),
         ]),
-        el('td', {}, [textInput(rule.pathname, (value) => { rule.pathname = value.trim(); })]),
+        el('td', {}, [pathnameInput(rule)]),
         el('td', { className: 'col-mode' }, [
           select(PATHNAME_MODE_LABELS, rule.pathnameMode, (value) => { rule.pathnameMode = value; }),
         ]),
