@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "lgpwmng",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "自治体業務システム向けのログイン情報入力補助（閉域環境対応・外部通信なし）",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "storage"],
