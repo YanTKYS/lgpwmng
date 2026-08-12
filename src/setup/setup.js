@@ -17,6 +17,7 @@ import {
 import { ruleMatches, suggestRuleFromUrl } from '../lib/match.js';
 import { parseHttpUrl } from '../lib/url.js';
 import { describeFrameDescriptor, frameDescriptorKey } from '../lib/frame.js';
+import { matchCapturedValues } from '../lib/capture.js';
 import { $, clear, el, fromTemplate, setStatus } from '../ui/dom.js';
 import {
   createAccountAutosaveTrigger,
@@ -39,6 +40,13 @@ const state = {
   persisted: null,
   candidates: [],
   rows: [],
+  // ログイン画面から取得した現在値（capture の結果）。保存はせず、この画面の
+  // メモリ上でだけ下書きの初期値として扱う。新規サービスの設定を開始したときだけ
+  // 取得する（loadScan 完了後、値は state.candidates と対応付けた state.capturedValues
+  // に変換して使う。setCandidates() が呼ばれるたびに、その時点の candidates に合わせて
+  // 組み直す）。
+  capturedEntries: [],
+  capturedValues: [],
 };
 
 const saveQueue = createSaveQueue();
@@ -79,6 +87,10 @@ async function boot() {
   try {
     await loadService();
     await loadScan();
+    // 新規サービスのときだけ、この画面を開いた操作（「このログイン画面を設定」）
+    // 自体を、現在値を取得してよい明示的な利用者操作とみなす。
+    // 既存サービスの編集では取得しない（既存の登録値を無確認で置き換えないため）。
+    if (!state.serviceId) await captureInitialValues();
     renderRows();
   } catch (error) {
     setStatus($('#save-status'), error.message, 'error');
@@ -130,6 +142,29 @@ async function loadScan() {
 }
 
 /**
+ * ログイン画面に入力済みの値を 1 回だけ取得する。
+ *
+ * scan（入力欄の構造）とは別のメッセージ（capture）で取得し、結果はどこにも
+ * 保存せずこの画面のメモリ上（state.capturedEntries）にだけ置く。再スキャンでは
+ * 呼び直さない（構造の更新と値の取得を分けるため）。
+ *
+ * 取得に失敗しても登録自体は継続できるよう、例外にはしない
+ * （scan にさえ成功していれば、値は手入力で設定できる）。
+ */
+async function captureInitialValues() {
+  try {
+    const result = await request(MSG.PAGE_CAPTURE, { tabId: state.tabId });
+    state.capturedEntries = result && Array.isArray(result.values) ? result.values : [];
+  } catch {
+    state.capturedEntries = [];
+  }
+  state.capturedValues = matchCapturedValues(state.candidates, state.capturedEntries);
+  if (state.capturedEntries.length) {
+    setStatus($('#save-status'), '入力済みの値を取り込みました。内容を確認してください。', 'ok');
+  }
+}
+
+/**
  * 「候補が見つからない」旨の表示。全フレームを走査したうえで本当に 0 件の場合と、
  * 一部のフレームにアクセスできなかった場合とを区別する。内部の frameId や
  * 例外の内容はそのまま表示しない。
@@ -167,6 +202,9 @@ let candidateOptions = null;
  */
 function setCandidates(scan) {
   state.candidates = scan && Array.isArray(scan.candidates) ? scan.candidates : [];
+  // capturedEntries は取得済み（新規サービスの設定開始時に 1 回だけ）のものをそのまま使い、
+  // candidates との対応付けだけを組み直す。再スキャンのたびに値を取得し直すことはしない。
+  state.capturedValues = matchCapturedValues(state.candidates, state.capturedEntries);
   candidateOptions = null;
   updateScanStatusMessage(scan);
 }
@@ -252,6 +290,7 @@ function renderRows() {
         scope: defaultScope(candidate.guessLabel),
         kind: candidate.guessKind,
         candidateIndex: index,
+        capturedValue: state.capturedValues[index] || '',
         frame: candidate.frame,
         use: Boolean(candidate.guessLabel) && !ambiguousAcrossFrames,
       });
@@ -269,6 +308,7 @@ function addRowsForUnusedCandidates(usedIndexes) {
       scope: defaultScope(candidate.guessLabel),
       kind: candidate.guessKind,
       candidateIndex: index,
+      capturedValue: state.capturedValues[index] || '',
       frame: candidate.frame,
       use: false,
     });
@@ -336,6 +376,12 @@ function addRow(init = {}) {
     fieldId: init.fieldId || null,
     locator: init.locator || null,
     frame: init.frame || null,
+    // ログイン画面に入力済みだった値（capture の結果）。項目がまだ確定していない
+    // 間はここに保持するだけで、確定した時点（collectFields）で値へ反映する。
+    capturedValue: init.capturedValue || '',
+    // 直近で capturedValue から自動反映した値。利用者の手入力かどうかの判定に使う
+    // （値がこれと異なれば手入力とみなし、以後は自動反映で上書きしない）。
+    lastAppliedValue: undefined,
     useInput,
     labelInput,
     scopeSelect,
@@ -348,6 +394,17 @@ function addRow(init = {}) {
   scopeSelect.addEventListener('change', () => {
     const field = record.fieldId && state.service.fields.find((entry) => entry.id === record.fieldId);
     if (field) changeFieldScope(state.service, field, scopeSelect.value);
+    renderValues();
+  });
+
+  // 対象入力欄の切り替え時は、新しい候補の現在値を反映する。ただし、利用者が
+  // 既に値を手入力していれば（＝前回自動反映した値と現在の値が異なれば）上書きしない。
+  // 例えば「ユーザーID」行の対象を候補Aから候補Bへ変更した場合、候補Aの値を
+  // そのまま引き継がず、候補Bの現在値（あれば）に差し替える。
+  candidateSelect.addEventListener('change', () => {
+    record.capturedValue = capturedValueForSelection(candidateSelect.value);
+    const field = record.fieldId && state.service.fields.find((entry) => entry.id === record.fieldId);
+    if (field) applyCapturedValueToField(field, record);
     renderValues();
   });
 
@@ -439,6 +496,33 @@ function resolveFrame(record) {
   return candidate ? candidate.frame : null;
 }
 
+/** 「対象入力欄」の選択値に対応する取得済みの現在値。候補を指していない場合は空文字。 */
+function capturedValueForSelection(value) {
+  if (value === '' || value === 'keep') return '';
+  const index = Number(value);
+  return Number.isInteger(index) ? (state.capturedValues[index] || '') : '';
+}
+
+/**
+ * capturedValue を項目の値（共通値 / 各アカウントの値）へ反映する。
+ *
+ * 既に値が入っていて、それが前回自動反映した値（row.lastAppliedValue）と異なる場合は
+ * 利用者の手入力とみなし、上書きしない。項目を初めて作った直後（値がまだ無い）と、
+ * 対象入力欄を切り替えた直後（手入力していなければ）だけ反映される。
+ */
+function applyCapturedValueToField(field, row) {
+  const targets = field.scope === FIELD_SCOPE.SHARED
+    ? [state.service.sharedValues]
+    : state.service.accounts.map((account) => account.values);
+  for (const values of targets) {
+    const current = values[field.id];
+    if (current && current !== row.lastAppliedValue) continue;
+    if (row.capturedValue) values[field.id] = row.capturedValue;
+    else delete values[field.id];
+  }
+  row.lastAppliedValue = row.capturedValue;
+}
+
 // --- 値の入力欄 -------------------------------------------------------------
 
 /**
@@ -482,8 +566,13 @@ function collectFields({ strict }) {
       frame: resolveFrame(row) || row.frame,
     });
     // 保存済みの項目は ID を保つ。ID が変わると登録済みの値が引き継がれない。
-    if (row.fieldId) field.id = row.fieldId;
-    else row.fieldId = field.id;
+    if (row.fieldId) {
+      field.id = row.fieldId;
+    } else {
+      row.fieldId = field.id;
+      // 項目を初めて確定した時点で、ログイン画面に入力済みだった値を下書きへ反映する。
+      applyCapturedValueToField(field, row);
+    }
     fields.push(field);
   }
   return { fields, error: '' };
