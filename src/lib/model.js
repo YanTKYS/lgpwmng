@@ -10,10 +10,15 @@
  *       └─ accounts[]     … 複数アカウント（通常 / 管理者）
  */
 
+import { normalizeFrameDescriptor } from './frame.js';
+
 /**
  * 1: hostname + pathname
  * 2: origin + pathname
  * 3: origin + pathname（protocol 未確定の旧条件を legacy として保持できる）
+ *    項目（field）に frame 情報を持てるようになったが、フレーム情報が無い
+ *    項目は常にトップフレーム扱いとして読み込めるため、schemaVersion は
+ *    据え置いている。
  */
 export const SCHEMA_VERSION = 3;
 
@@ -121,6 +126,9 @@ export function createField(partial = {}) {
     scope: partial.scope === FIELD_SCOPE.SHARED ? FIELD_SCOPE.SHARED : FIELD_SCOPE.ACCOUNT,
     kind: partial.kind === FIELD_KIND.SECRET ? FIELD_KIND.SECRET : FIELD_KIND.TEXT,
     locator: normalizeLocator(partial.locator),
+    // 対象入力欄が属するフレーム。情報が無い場合はトップフレーム扱いになる
+    // （旧バージョンで登録した項目もそのまま読み込める）。
+    frame: normalizeFrameDescriptor(partial.frame),
   };
 }
 
@@ -288,6 +296,7 @@ export function buildFillValues(service, account) {
         label: field.label,
         kind: field.kind,
         locator: field.locator,
+        frame: field.frame,
         value: typeof value === 'string' ? value : '',
       };
     })

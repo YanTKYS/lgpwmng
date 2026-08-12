@@ -16,6 +16,7 @@ import {
   isPendingRule,
   normalizeOrigin,
 } from '../lib/model.js';
+import { describeFrameDescriptor } from '../lib/frame.js';
 import { $, clear, el, setStatus } from '../ui/dom.js';
 import {
   createAccountAutosaveTrigger,
@@ -148,19 +149,19 @@ export function createServiceEditor({ onChanged }) {
     $('#field-empty').classList.toggle('hidden', service.fields.length > 0);
 
     for (const field of service.fields) {
-      const summary = el('div', { className: 'locator-summary', text: describeLocator(field.locator) });
+      const summary = el('div', { className: 'locator-summary', text: describeLocator(field.locator, field.frame) });
       const editor = el('div', { className: 'locator-edit hidden' }, [
         textInput(field.locator.elementId, (value) => {
           field.locator.elementId = value.trim();
-          summary.textContent = describeLocator(field.locator);
+          summary.textContent = describeLocator(field.locator, field.frame);
         }, { placeholder: 'id' }),
         textInput(field.locator.name, (value) => {
           field.locator.name = value.trim();
-          summary.textContent = describeLocator(field.locator);
+          summary.textContent = describeLocator(field.locator, field.frame);
         }, { placeholder: 'name' }),
         textInput(field.locator.cssPath, (value) => {
           field.locator.cssPath = value.trim();
-          summary.textContent = describeLocator(field.locator);
+          summary.textContent = describeLocator(field.locator, field.frame);
         }, { placeholder: 'CSSセレクタ' }),
       ]);
       const toggle = el('button', {
@@ -213,13 +214,15 @@ export function createServiceEditor({ onChanged }) {
     }
   }
 
-  function describeLocator(locator) {
+  function describeLocator(locator, frame) {
     const parts = [locator.tagName || 'input'];
     if (locator.type) parts.push(`[${locator.type}]`);
     if (locator.elementId) parts.push(`#${locator.elementId}`);
     if (locator.name) parts.push(`name=${locator.name}`);
     if (!locator.elementId && !locator.name && locator.cssPath) parts.push(locator.cssPath);
     if (locator.labelText) parts.push(`「${locator.labelText}」`);
+    const frameHint = describeFrameDescriptor(frame);
+    if (frameHint) parts.push(`[フレーム: ${frameHint}]`);
     return parts.join(' ');
   }
 
