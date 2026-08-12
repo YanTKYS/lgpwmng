@@ -47,6 +47,8 @@ const state = {
   // 組み直す）。
   capturedEntries: [],
   capturedValues: [],
+  // capture はログイン中の一人分なので、このアカウント以外には決して展開しない。
+  initialCaptureAccountId: null,
 };
 
 const saveQueue = createSaveQueue();
@@ -119,6 +121,7 @@ async function loadService() {
     const pageUrl = parseHttpUrl(state.url);
     state.service = createService(pageUrl ? pageUrl.hostname : '');
     state.service.accounts = [createAccount({ name: '標準ユーザー' })];
+    state.initialCaptureAccountId = state.service.accounts[0].id;
     state.persisted = null;
   }
   renderAccountSaveStatus(null);
@@ -159,7 +162,7 @@ async function captureInitialValues() {
     state.capturedEntries = [];
   }
   state.capturedValues = matchCapturedValues(state.candidates, state.capturedEntries);
-  if (state.capturedEntries.length) {
+  if (state.capturedValues.some((value) => value !== '')) {
     setStatus($('#save-status'), '入力済みの値を取り込みました。内容を確認してください。', 'ok');
   }
 }
@@ -379,9 +382,8 @@ function addRow(init = {}) {
     // ログイン画面に入力済みだった値（capture の結果）。項目がまだ確定していない
     // 間はここに保持するだけで、確定した時点（collectFields）で値へ反映する。
     capturedValue: init.capturedValue || '',
-    // 直近で capturedValue から自動反映した値。利用者の手入力かどうかの判定に使う
-    // （値がこれと異なれば手入力とみなし、以後は自動反映で上書きしない）。
-    lastAppliedValue: undefined,
+    // 空欄化を含む input イベントで明示的に立てる。値の比較による推測はしない。
+    userEdited: false,
     useInput,
     labelInput,
     scopeSelect,
@@ -394,6 +396,7 @@ function addRow(init = {}) {
   scopeSelect.addEventListener('change', () => {
     const field = record.fieldId && state.service.fields.find((entry) => entry.id === record.fieldId);
     if (field) changeFieldScope(state.service, field, scopeSelect.value);
+    if (field) keepCapturedValueInInitialAccount(field, record);
     renderValues();
   });
 
@@ -506,21 +509,35 @@ function capturedValueForSelection(value) {
 /**
  * capturedValue を項目の値（共通値 / 各アカウントの値）へ反映する。
  *
- * 既に値が入っていて、それが前回自動反映した値（row.lastAppliedValue）と異なる場合は
- * 利用者の手入力とみなし、上書きしない。項目を初めて作った直後（値がまだ無い）と、
- * 対象入力欄を切り替えた直後（手入力していなければ）だけ反映される。
+ * 利用者が一度でも編集した行は（空欄にした場合も）上書きしない。アカウント項目は
+ * 設定開始時の標準ユーザーだけが対象で、後から追加したアカウントへ複製しない。
  */
 function applyCapturedValueToField(field, row) {
+  if (row.userEdited) return;
   const targets = field.scope === FIELD_SCOPE.SHARED
     ? [state.service.sharedValues]
-    : state.service.accounts.map((account) => account.values);
+    : state.service.accounts
+      .filter((account) => account.id === state.initialCaptureAccountId)
+      .map((account) => account.values);
   for (const values of targets) {
-    const current = values[field.id];
-    if (current && current !== row.lastAppliedValue) continue;
     if (row.capturedValue) values[field.id] = row.capturedValue;
     else delete values[field.id];
   }
-  row.lastAppliedValue = row.capturedValue;
+}
+
+/** capture 由来の未編集値を shared から account へ移した場合も複製を防ぐ。 */
+function keepCapturedValueInInitialAccount(field, row) {
+  if (row.userEdited || !row.capturedValue || field.scope !== FIELD_SCOPE.ACCOUNT) return;
+  for (const account of state.service.accounts) {
+    if (account.id !== state.initialCaptureAccountId && account.values[field.id] === row.capturedValue) {
+      delete account.values[field.id];
+    }
+  }
+}
+
+function markFieldUserEdited(field) {
+  const row = state.rows.find((entry) => entry.fieldId === field.id);
+  if (row) row.userEdited = true;
 }
 
 // --- 値の入力欄 -------------------------------------------------------------
@@ -588,11 +605,12 @@ function renderValues() {
   state.service.fields = fields;
   const sharedFields = fields.filter((field) => field.scope === FIELD_SCOPE.SHARED);
   const accountFields = fields.filter((field) => field.scope === FIELD_SCOPE.ACCOUNT);
-  renderValueFields($('#shared-values'), sharedFields, state.service.sharedValues);
+  renderValueFields($('#shared-values'), sharedFields, state.service.sharedValues, undefined, markFieldUserEdited);
   $('#shared-empty').classList.toggle('hidden', sharedFields.length > 0);
   renderAccountCards($('#account-list'), state.service.accounts, accountFields, {
     onChange: triggerAccountAutosave,
     onRemove: triggerAccountAutosave,
+    onEdit: markFieldUserEdited,
   });
 }
 
