@@ -68,7 +68,7 @@ export function valueInput(field, value, onChange, onCommit) {
  * 「表示名 + 入力欄」の並びで項目値を描画する（サービス共通値 / アカウント値の双方で使う）。
  * onCommit を渡さない呼び出し（サービス共通値など）は自動保存の対象にならない。
  */
-export function renderValueFields(container, fields, values, onCommit) {
+export function renderValueFields(container, fields, values, onCommit, onEdit) {
   clear(container);
   for (const field of fields) {
     container.append(el('div', {}, [
@@ -76,6 +76,7 @@ export function renderValueFields(container, fields, values, onCommit) {
       valueInput(field, values[field.id], (value) => {
         if (value) values[field.id] = value;
         else delete values[field.id];
+        if (onEdit) onEdit(field);
       }, onCommit),
     ]));
   }
@@ -88,7 +89,7 @@ export function renderValueFields(container, fields, values, onCommit) {
  * @param {Function} [onChange] 名前 / 区分 / 各項目値が確定したときに呼ばれる（自動保存のトリガー用）。
  * @param {Function} [onRemove] アカウントを削除したときに呼ばれる（自動保存のトリガー用）。
  */
-export function renderAccountCards(container, accounts, accountFields, { onRemove, onChange } = {}) {
+export function renderAccountCards(container, accounts, accountFields, { onRemove, onChange, onEdit } = {}) {
   clear(container);
   if (!accounts.length) {
     container.append(el('p', { className: 'small muted', text: 'アカウントが登録されていません。' }));
@@ -116,7 +117,7 @@ export function renderAccountCards(container, accounts, accountFields, { onRemov
             if (!confirmed) return;
             const index = accounts.indexOf(account);
             if (index >= 0) accounts.splice(index, 1);
-            renderAccountCards(container, accounts, accountFields, { onRemove, onChange });
+            renderAccountCards(container, accounts, accountFields, { onRemove, onChange, onEdit });
             if (onRemove) onRemove();
           },
         },
@@ -126,7 +127,7 @@ export function renderAccountCards(container, accounts, accountFields, { onRemov
 
     if (accountFields.length) {
       const grid = el('div', { className: 'value-grid' });
-      renderValueFields(grid, accountFields, account.values, onChange);
+      renderValueFields(grid, accountFields, account.values, onChange, onEdit);
       card.append(grid);
     } else {
       card.append(el('p', { className: 'small muted', text: 'アカウント区分の項目がありません。' }));
