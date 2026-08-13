@@ -88,11 +88,15 @@ async function boot() {
   // （サービスが見つからない等、アンロックしても解決しない原因があるため）。
   try {
     await loadService();
-    await loadScan();
-    // 新規サービスのときだけ、この画面を開いた操作（「このログイン画面を設定」）
-    // 自体を、現在値を取得してよい明示的な利用者操作とみなす。
-    // 既存サービスの編集では取得しない（既存の登録値を無確認で置き換えないため）。
-    if (!state.serviceId) await captureInitialValues();
+    const scan = await loadScan();
+    if (!state.serviceId) {
+      // 新規サービスのときだけ、この画面を開いた操作（「このログイン画面を設定」）
+      // 自体を、ページの内容を初期値として使ってよい明示的な利用者操作とみなす。
+      // 既存サービスの編集では取得しない（既存の登録値を無確認で置き換えないため）。
+      state.service.name = defaultServiceName(scan);
+      $('#service-name').value = state.service.name;
+      await captureInitialValues();
+    }
     renderRows();
   } catch (error) {
     setStatus($('#save-status'), error.message, 'error');
@@ -118,8 +122,8 @@ async function loadService() {
     // 新規サービスも下書きとして最初から用意し、この画面だけで
     // 入力項目・アカウントまで一気通貫で設定できるようにする。
     // ただしまだ一度も保存していないため、アカウントの変更もこの時点では自動保存しない。
-    const pageUrl = parseHttpUrl(state.url);
-    state.service = createService(pageUrl ? pageUrl.hostname : '');
+    // サービス名は走査結果（ページタイトル）を見てから決めるため、ここでは空のままにする。
+    state.service = createService('');
     state.service.accounts = [createAccount({ name: '標準ユーザー' })];
     state.initialCaptureAccountId = state.service.accounts[0].id;
     state.persisted = null;
@@ -129,6 +133,7 @@ async function loadService() {
   $('#service-note').value = state.service.note || '';
 }
 
+/** @returns {Promise<object|null>} 走査結果。取得できなければ null。 */
 async function loadScan() {
   let scan = await request(MSG.SCAN_RESULT_GET, { tabId: state.tabId });
   if (!scan) {
@@ -139,9 +144,18 @@ async function loadScan() {
     }
   }
   setCandidates(scan);
-  if (!state.serviceId && scan && scan.title && !$('#service-name').value) {
-    $('#service-name').value = scan.title.slice(0, 60);
-  }
+  return scan;
+}
+
+/**
+ * 新規サービスの既定名。ページタイトルの方が業務システム名に近いため優先し、
+ * タイトルを取得できない場合はホスト名を使う（どちらも利用者が上書きできる初期値）。
+ */
+function defaultServiceName(scan) {
+  const title = scan && typeof scan.title === 'string' ? scan.title.trim() : '';
+  if (title) return title.slice(0, 60);
+  const pageUrl = parseHttpUrl(state.url);
+  return pageUrl ? pageUrl.hostname : '';
 }
 
 /**
@@ -341,6 +355,8 @@ function applyRescan(previousLocators, previousFrames) {
       row.locator = locator;
       row.frame = frame;
     }
+    // 候補の並びが変わるため、取り込み済みの値との対応も取り直す。
+    if (!row.userEdited) row.capturedValue = index >= 0 ? (state.capturedValues[index] || '') : '';
     fillCandidateOptions(row.candidateSelect, index, index < 0 ? locator : null);
   });
   addRowsForUnusedCandidates(usedIndexes);
@@ -394,9 +410,11 @@ function addRow(init = {}) {
   // 区分（共通 / アカウント）の変更時は、既に入力済みの値を新しい区分側へ引き継いでから
   // 描画し直す。引き継ぎには変更前の区分が要るため、renderValues より先に行う。
   scopeSelect.addEventListener('change', () => {
-    const field = record.fieldId && state.service.fields.find((entry) => entry.id === record.fieldId);
-    if (field) changeFieldScope(state.service, field, scopeSelect.value);
-    if (field) keepCapturedValueInInitialAccount(field, record);
+    const field = findField(record);
+    if (field) {
+      changeFieldScope(state.service, field, scopeSelect.value);
+      keepCapturedValueInInitialAccount(field, record);
+    }
     renderValues();
   });
 
@@ -406,7 +424,7 @@ function addRow(init = {}) {
   // そのまま引き継がず、候補Bの現在値（あれば）に差し替える。
   candidateSelect.addEventListener('change', () => {
     record.capturedValue = capturedValueForSelection(candidateSelect.value);
-    const field = record.fieldId && state.service.fields.find((entry) => entry.id === record.fieldId);
+    const field = findField(record);
     if (field) applyCapturedValueToField(field, record);
     renderValues();
   });
@@ -507,13 +525,24 @@ function capturedValueForSelection(value) {
 }
 
 /**
+ * 取り込んだ値を反映してよい状態か。
+ *
+ * capture は新規サービスの下書きに対してだけ行うため、一度でも保存した後
+ * （既存サービスの編集を含む）は反映しない。ここで区別しないと、既存サービスで
+ * 「対象入力欄」を選び直しただけで、登録済みの共通値が消えてしまう。
+ */
+function isCaptureDraft() {
+  return state.persisted === null;
+}
+
+/**
  * capturedValue を項目の値（共通値 / 各アカウントの値）へ反映する。
  *
  * 利用者が一度でも編集した行は（空欄にした場合も）上書きしない。アカウント項目は
  * 設定開始時の標準ユーザーだけが対象で、後から追加したアカウントへ複製しない。
  */
 function applyCapturedValueToField(field, row) {
-  if (row.userEdited) return;
+  if (!isCaptureDraft() || row.userEdited) return;
   const targets = field.scope === FIELD_SCOPE.SHARED
     ? [state.service.sharedValues]
     : state.service.accounts
@@ -527,7 +556,8 @@ function applyCapturedValueToField(field, row) {
 
 /** capture 由来の未編集値を shared から account へ移した場合も複製を防ぐ。 */
 function keepCapturedValueInInitialAccount(field, row) {
-  if (row.userEdited || !row.capturedValue || field.scope !== FIELD_SCOPE.ACCOUNT) return;
+  if (!isCaptureDraft() || row.userEdited) return;
+  if (!row.capturedValue || field.scope !== FIELD_SCOPE.ACCOUNT) return;
   for (const account of state.service.accounts) {
     if (account.id !== state.initialCaptureAccountId && account.values[field.id] === row.capturedValue) {
       delete account.values[field.id];
@@ -538,6 +568,12 @@ function keepCapturedValueInInitialAccount(field, row) {
 function markFieldUserEdited(field) {
   const row = state.rows.find((entry) => entry.fieldId === field.id);
   if (row) row.userEdited = true;
+}
+
+/** 行に対応する、確定済みの項目。まだ確定していない行では null。 */
+function findField(row) {
+  if (!row.fieldId) return null;
+  return state.service.fields.find((field) => field.id === row.fieldId) || null;
 }
 
 // --- 値の入力欄 -------------------------------------------------------------
@@ -605,7 +641,7 @@ function renderValues() {
   state.service.fields = fields;
   const sharedFields = fields.filter((field) => field.scope === FIELD_SCOPE.SHARED);
   const accountFields = fields.filter((field) => field.scope === FIELD_SCOPE.ACCOUNT);
-  renderValueFields($('#shared-values'), sharedFields, state.service.sharedValues, undefined, markFieldUserEdited);
+  renderValueFields($('#shared-values'), sharedFields, state.service.sharedValues, { onEdit: markFieldUserEdited });
   $('#shared-empty').classList.toggle('hidden', sharedFields.length > 0);
   renderAccountCards($('#account-list'), state.service.accounts, accountFields, {
     onChange: triggerAccountAutosave,

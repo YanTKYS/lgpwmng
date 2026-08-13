@@ -166,5 +166,7 @@ export function describeRule(rule) {
     : rule.origin;
   if (rule.pathnameMode === PATHNAME_MODE.ANY) return `${origin}（パス問わず）`;
   const path = normalizePathname(rule.pathname);
-  return rule.pathnameMode === PATHNAME_MODE.PREFIX ? `${origin}${path}/*` : `${origin}${path}`;
+  if (rule.pathnameMode !== PATHNAME_MODE.PREFIX) return `${origin}${path}`;
+  // パスが `/` のときに `//*` とならないようにする。
+  return path === '/' ? `${origin}/*` : `${origin}${path}/*`;
 }

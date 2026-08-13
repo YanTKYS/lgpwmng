@@ -193,6 +193,15 @@ export function createSharePanel({ onImported } = {}) {
     $('#share-import-admin-notice', importDialog).classList.toggle('hidden', !plan.hasAdmin);
   }
 
+  /** 取り込み結果の文言。0 件の内訳は並べない（「0アカウントを更新しました」を出さない）。 */
+  function describeImportResult(result) {
+    const parts = [];
+    if (result.serviceAdds) parts.push(`${result.serviceAdds}サービスを追加`);
+    if (result.accountAdds) parts.push(`${result.accountAdds}アカウントを追加`);
+    if (result.accountUpdates) parts.push(`${result.accountUpdates}アカウントを更新`);
+    return parts.length ? `${parts.join('、')}しました。` : '追加・更新の対象はありませんでした。';
+  }
+
   $('#btn-share-import-open').addEventListener('click', () => {
     resetImportDialog();
     importDialog.showModal();
@@ -238,20 +247,16 @@ export function createSharePanel({ onImported } = {}) {
 
   $('#btn-share-import-commit', importDialog).addEventListener('click', async () => {
     if (!pending) return;
-    const request_ = pending;
+    const confirmed = pending;
     pending = null;
     try {
-      const result = await request(MSG.SHARE_IMPORT_COMMIT, request_);
+      const result = await request(MSG.SHARE_IMPORT_COMMIT, confirmed);
       // Vault へ反映されたので、サービス一覧・編集中のサービスを最新の内容へ読み直す。
       // これを怠ると、インポート前から開いていた編集画面が古い accounts のまま残り、
       // そこでアカウントを自動保存すると今回追加・更新した内容を消してしまう。
       // 取り込み自体は既に成功しているため、再読込の失敗を取り込み失敗として扱わない。
       if (onImported) await Promise.resolve(onImported()).catch(() => {});
-      const parts = [];
-      if (result.serviceAdds) parts.push(`${result.serviceAdds}サービスを追加`);
-      parts.push(`${result.accountAdds}アカウントを追加`);
-      parts.push(`${result.accountUpdates}アカウントを更新`);
-      $('#share-import-result', importDialog).textContent = `${parts.join('、')}しました。`;
+      $('#share-import-result', importDialog).textContent = describeImportResult(result);
       $('#share-import-step-preview', importDialog).classList.add('hidden');
       $('#share-import-step-done', importDialog).classList.remove('hidden');
     } catch (error) {

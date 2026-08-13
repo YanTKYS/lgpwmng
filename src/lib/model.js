@@ -161,7 +161,7 @@ export function createAccount(partial = {}) {
  * DOM 要素を識別するための情報。
  * 単一セレクタに依存せず複数のヒントを保持し、DOM 変更にある程度耐えられるようにする。
  */
-export function normalizeLocator(locator = {}) {
+function normalizeLocator(locator = {}) {
   return {
     tagName: str(locator.tagName).toLowerCase(),
     type: str(locator.type).toLowerCase(),
@@ -264,27 +264,19 @@ export function changeFieldScope(service, field, nextScope) {
 }
 
 /**
- * UI へ渡すためにサービスを要約する。秘密情報の値そのものは含めない。
+ * 一覧表示（popup / 設定ページのサービス一覧・共有対象の選択）へ渡すための要約。
+ * 画面が実際に使う項目だけを含め、登録済みの値そのものは含めない。
  */
 export function summarizeService(service) {
   return {
     id: service.id,
     name: service.name,
-    note: service.note,
     matchRules: service.matchRules.map((rule) => ({ ...rule })),
     fieldCount: service.fields.length,
-    fields: service.fields.map((field) => ({
-      id: field.id,
-      label: field.label,
-      scope: field.scope,
-      kind: field.kind,
-      hasSharedValue: Boolean(service.sharedValues[field.id]),
-    })),
     accounts: service.accounts.map((account) => ({
       id: account.id,
       name: account.name,
       role: account.role,
-      note: account.note,
       filledFieldCount: countFilled(service, account),
     })),
   };

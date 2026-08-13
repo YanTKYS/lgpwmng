@@ -28,18 +28,6 @@ export class ShareFileError extends Error {}
 // --- 選択済みアカウントの抽出 ---------------------------------------------------
 
 /**
- * @param {{[serviceId: string]: string[]}} selection サービスIDごとに選択したaccountIdの配列
- * @returns {number}
- */
-export function countSelectedAccounts(selection) {
-  if (!selection || typeof selection !== 'object') return 0;
-  return Object.values(selection).reduce(
-    (total, ids) => total + (Array.isArray(ids) ? ids.length : 0),
-    0,
-  );
-}
-
-/**
  * Vault から選択済みアカウントだけを抽出する。
  * 選択していないアカウント・サービスは一切含めない
  * （個人利用アカウントが意図せず含まれないことを優先する）。
