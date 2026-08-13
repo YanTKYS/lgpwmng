@@ -12,6 +12,10 @@ export const MSG = {
   VAULT_EXPORT: 'vault/export',
   VAULT_IMPORT: 'vault/import',
 
+  SHARE_EXPORT: 'share/export',
+  SHARE_IMPORT_PREVIEW: 'share/import-preview',
+  SHARE_IMPORT_COMMIT: 'share/import-commit',
+
   SERVICE_LIST: 'service/list',
   SERVICE_GET: 'service/get',
   SERVICE_SAVE: 'service/save',
