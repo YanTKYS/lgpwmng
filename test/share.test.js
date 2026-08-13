@@ -284,3 +284,27 @@ test('buildImportPlan は Vault を変更せずに内訳だけを返す', async 
   assert.equal(plan.totals.accountUpdates, 0);
   assert.equal(plan.hasAdmin, true);
 });
+
+test('buildImportPlan は既存serviceのsettings更新（matchRules/fields/sharedValuesのマージ）も示す', async () => {
+  const senderVault = buildVault();
+  const receiverVault = buildVault(); // svc_hr は既存、svc_fin は共有しない
+  const file = await makeShareFile(senderVault, { svc_hr: ['acc_admin'] });
+  const services = await decryptShareFile(file, PASSPHRASE);
+  const plan = buildImportPlan(receiverVault, services);
+
+  const hr = plan.services.find((s) => s.serviceId === 'svc_hr');
+  assert.equal(hr.isNewService, false);
+  assert.equal(hr.settingsUpdated, true);
+});
+
+test('buildImportPlan は新規serviceにはsettings更新を示さない', async () => {
+  const senderVault = buildVault();
+  const receiverVault = createVault();
+  const file = await makeShareFile(senderVault, { svc_fin: ['acc_fin_personal'] });
+  const services = await decryptShareFile(file, PASSPHRASE);
+  const plan = buildImportPlan(receiverVault, services);
+
+  const fin = plan.services.find((s) => s.serviceId === 'svc_fin');
+  assert.equal(fin.isNewService, true);
+  assert.equal(fin.settingsUpdated, false);
+});
