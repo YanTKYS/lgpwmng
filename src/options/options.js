@@ -3,9 +3,13 @@
 import { MSG, request } from '../lib/messages.js';
 import { describeRule } from '../lib/match.js';
 import { $, $$, clear, el, setStatus } from '../ui/dom.js';
+import { downloadJson, timestamp } from '../ui/download.js';
 import { createServiceEditor } from './service-editor.js';
+import { createSharePanel } from './share-panel.js';
 
 const state = { services: [], selectedId: null, filter: '' };
+
+createSharePanel();
 
 const editor = createServiceEditor({
   onChanged: async (serviceId) => {
@@ -168,38 +172,13 @@ $('#form-export').addEventListener('submit', async (event) => {
   const input = $('#export-passphrase');
   try {
     const backup = await request(MSG.VAULT_EXPORT, { passphrase: input.value });
-    downloadJson(backup);
+    downloadJson(backup, `lgpwmng-backup-${timestamp()}.json`);
     input.value = '';
     setStatus($('#export-status'), '暗号化バックアップを保存しました。', 'ok');
   } catch (error) {
     setStatus($('#export-status'), error.message, 'error');
   }
 });
-
-/** ファイル名用の日時（端末のローカル時刻）。 */
-function timestamp() {
-  const now = new Date();
-  const pad = (value) => String(value).padStart(2, '0');
-  return [
-    now.getFullYear(),
-    pad(now.getMonth() + 1),
-    pad(now.getDate()),
-    pad(now.getHours()),
-    pad(now.getMinutes()),
-    pad(now.getSeconds()),
-  ].join('');
-}
-
-function downloadJson(backup) {
-  const stamp = timestamp();
-  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const anchor = el('a', { attrs: { href: url, download: `lgpwmng-backup-${stamp}.json` } });
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 $('#form-import').addEventListener('submit', async (event) => {
   event.preventDefault();

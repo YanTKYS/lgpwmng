@@ -22,12 +22,15 @@ import {
   changeMasterPassword,
   createNewVault,
   exportBackup,
+  exportShare,
   getVault,
   importBackup,
+  importShare,
   initSessionStorage,
   isInitialized,
   isUnlocked,
   lock,
+  previewShareImport,
   saveVault,
   unlock,
 } from './vault-store.js';
@@ -84,6 +87,15 @@ async function handle(message) {
 
     case MSG.VAULT_IMPORT:
       return importBackup(payload.backup, payload.passphrase, payload.mode === 'merge' ? 'merge' : 'replace');
+
+    case MSG.SHARE_EXPORT:
+      return exportShare(payload.selection, payload.passphrase);
+
+    case MSG.SHARE_IMPORT_PREVIEW:
+      return previewShareImport(payload.file, payload.passphrase);
+
+    case MSG.SHARE_IMPORT_COMMIT:
+      return importShare(payload.file, payload.passphrase);
 
     case MSG.SERVICE_LIST: {
       const vault = await getVault();

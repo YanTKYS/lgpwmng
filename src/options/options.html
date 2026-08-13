@@ -148,22 +148,20 @@
         </section>
 
         <section class="block">
-          <h3>バックアップ</h3>
-          <p class="small muted">バックアップファイルは暗号化されます。パスフレーズを忘れると復元できません。</p>
+          <h3>■ マスターバックアップ</h3>
+          <p class="small muted">
+            Vault 全体の保全・復旧用です。バックアップファイルは暗号化されます。パスフレーズを忘れると復元できません。
+          </p>
           <form id="form-export" class="stack narrow">
             <div>
               <div class="field-label">バックアップ用パスフレーズ（8文字以上）</div>
               <input type="password" id="export-passphrase" autocomplete="new-password">
             </div>
             <div class="row">
-              <button type="submit" class="primary">エクスポート</button>
+              <button type="submit" class="primary">バックアップを保存</button>
               <div id="export-status" class="status"></div>
             </div>
           </form>
-        </section>
-
-        <section class="block">
-          <h3>復元</h3>
           <form id="form-import" class="stack narrow">
             <div>
               <div class="field-label">バックアップファイル</div>
@@ -181,19 +179,93 @@
               </select>
             </div>
             <div class="row">
-              <button type="submit">復元する</button>
+              <button type="submit">バックアップを復元</button>
               <div id="import-status" class="status"></div>
             </div>
           </form>
         </section>
 
         <section class="block">
+          <h3>■ アカウント共有</h3>
+          <p class="small muted">
+            選択したサービス／アカウントだけを暗号化ファイルとして受け渡します。マスターバックアップとは別の独立した機能で、
+            Vault 全体が含まれることはなく、既存の他のサービス・アカウントが置き換わることもありません。
+          </p>
+          <div class="row">
+            <button type="button" id="btn-share-export-open">共有用ファイルを作成</button>
+            <button type="button" id="btn-share-import-open">共有用ファイルを取り込む</button>
+          </div>
+        </section>
+
+        <section class="block">
           <h3>この拡張について</h3>
-          <p class="small muted">lgpwmng v0.4.0 / 外部通信なし・端末内のみで動作します。認証情報は AES-GCM で暗号化して保存されます。</p>
+          <p class="small muted">lgpwmng v0.5.0 / 外部通信なし・端末内のみで動作します。認証情報は AES-GCM で暗号化して保存されます。</p>
         </section>
       </section>
     </div>
   </main>
+
+  <dialog id="share-export-dialog">
+    <form method="dialog" class="stack" id="share-export-form">
+      <h3>共有用ファイルを作成</h3>
+      <p class="small muted">共有するアカウントだけを選択してください。選択しなかったアカウントはファイルに含まれません。</p>
+      <div id="share-export-services" class="stack share-service-list"></div>
+      <div id="share-export-admin-notice" class="notice hidden">管理者アカウントを含みます。共有先と取扱いを確認してください。</div>
+      <div class="small" id="share-export-count">選択中: 0件</div>
+      <div>
+        <div class="field-label">共有用パスフレーズ（8文字以上）</div>
+        <input type="password" id="share-export-passphrase" autocomplete="new-password">
+      </div>
+      <div>
+        <div class="field-label">確認のため再入力</div>
+        <input type="password" id="share-export-passphrase-confirm" autocomplete="new-password">
+      </div>
+      <div class="row">
+        <button type="submit" class="primary">出力する</button>
+        <button type="button" id="btn-share-export-cancel">閉じる</button>
+        <div id="share-export-status" class="status"></div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="share-import-dialog">
+    <div class="stack">
+      <h3>共有用ファイルを取り込む</h3>
+
+      <div id="share-import-step-file" class="stack">
+        <div>
+          <div class="field-label">共有ファイル</div>
+          <input type="file" id="share-import-file" accept=".json,application/json">
+        </div>
+        <div>
+          <div class="field-label">共有用パスフレーズ</div>
+          <input type="password" id="share-import-passphrase" autocomplete="off">
+        </div>
+        <div class="row">
+          <button type="button" id="btn-share-import-decrypt" class="primary">内容を確認</button>
+          <button type="button" id="btn-share-import-cancel">閉じる</button>
+          <div id="share-import-status" class="status"></div>
+        </div>
+      </div>
+
+      <div id="share-import-step-preview" class="stack hidden">
+        <p class="small muted">既存のサービス・アカウントが置き換わることはありません。表示された対象のみ追加・更新します。</p>
+        <div id="share-import-preview-list" class="stack"></div>
+        <div id="share-import-admin-notice" class="notice hidden">管理者アカウントを含みます。取り扱いに注意してください。</div>
+        <div class="row">
+          <button type="button" id="btn-share-import-commit" class="primary">取り込みを実行</button>
+          <button type="button" id="btn-share-import-back">戻る</button>
+        </div>
+      </div>
+
+      <div id="share-import-step-done" class="stack hidden">
+        <div id="share-import-result" class="status ok"></div>
+        <div class="row">
+          <button type="button" id="btn-share-import-close">閉じる</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
 
   <script type="module" src="options.js"></script>
 </body>

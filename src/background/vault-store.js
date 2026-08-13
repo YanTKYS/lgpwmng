@@ -16,12 +16,19 @@ import {
   exportKey,
   importKey,
 } from '../lib/crypto.js';
-import { createVault, normalizeVault } from '../lib/model.js';
+import { BACKUP_FORMAT, SHARE_FORMAT, createVault, normalizeVault } from '../lib/model.js';
+import {
+  applyShareImport,
+  buildImportPlan,
+  createShareFile,
+  decryptShareFile,
+  extractShareServices,
+} from '../lib/share.js';
 
 const LOCAL_RECORD_KEY = 'lgpwmng.vault';
 const SESSION_KEY_KEY = 'lgpwmng.sessionKey';
 
-export const BACKUP_FORMAT = 'lgpwmng-backup';
+export { BACKUP_FORMAT };
 const VAULT_FORMAT = 'lgpwmng-vault';
 
 /** 復号済み Vault のメモリキャッシュ。Service Worker 終了時に失われる。 */
@@ -214,6 +221,9 @@ function isBackupFile(backup) {
  * @param {'replace'|'merge'} mode
  */
 export async function importBackup(backup, passphrase, mode) {
+  if (backup && backup.format === SHARE_FORMAT) {
+    throw new Error('これは共有用ファイルです。「バックアップを復元」ではなく「共有用ファイルを取り込む」から読み込んでください。');
+  }
   if (!isBackupFile(backup)) {
     throw new Error('バックアップファイルの形式が不正です。lgpwmng で書き出したファイルを選択してください。');
   }
@@ -235,6 +245,45 @@ export async function importBackup(backup, passphrase, mode) {
   current.services = imported.services;
   await saveVault(current);
   return { imported: imported.services.length, total: current.services.length };
+}
+
+/**
+ * アカウント共有用のエクスポート。
+ * マスターバックアップ（Vault 全体）とは別の独立した形式（lgpwmng-share）で出力する。
+ * 選択していないアカウント・サービスは一切含めない。
+ *
+ * @param {{[serviceId: string]: string[]}} selection サービスIDごとに選択した accountId
+ * @param {string} passphrase 共有用パスフレーズ（Vault のマスターパスワードとは独立）
+ */
+export async function exportShare(selection, passphrase) {
+  const vault = await getVault();
+  assertPassword(passphrase);
+  const services = extractShareServices(vault, selection);
+  return createShareFile(services, passphrase);
+}
+
+/**
+ * 共有ファイルを復号し、現在の Vault に対して何が追加・更新されるかの計画を返す。
+ * Vault へは反映しない（取り込み前の内容確認用）。
+ */
+export async function previewShareImport(shareFile, passphrase) {
+  const services = await decryptShareFile(shareFile, passphrase);
+  const vault = await getVault();
+  return buildImportPlan(vault, services);
+}
+
+/**
+ * 共有ファイルを取り込む。
+ * `current.services = imported.services` のような Vault 全体の置換は行わない。
+ * 共有ファイルに含まれる対象（サービス／アカウント）だけを追加・更新し、
+ * 個人サービス・個人アカウント・他の共有アカウント・利用者独自設定は維持する。
+ */
+export async function importShare(shareFile, passphrase) {
+  const services = await decryptShareFile(shareFile, passphrase);
+  const vault = await getVault();
+  const result = applyShareImport(vault, services);
+  await saveVault(vault);
+  return result;
 }
 
 function assertPassword(password) {

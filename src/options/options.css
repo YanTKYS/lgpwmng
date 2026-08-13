@@ -188,3 +188,37 @@ td select, td input {
   padding: 14px 16px;
   max-width: 720px;
 }
+
+dialog {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  max-width: 560px;
+  width: 92vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.share-service-list {
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.share-service-group {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.share-account-row {
+  gap: 8px;
+}

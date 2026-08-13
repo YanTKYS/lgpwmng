@@ -23,6 +23,17 @@ import { normalizeRulePathname } from './url.js';
  */
 export const SCHEMA_VERSION = 3;
 
+/**
+ * ファイル形式の識別子。
+ *   lgpwmng-backup … Vault 全体の保全・復旧用（マスターバックアップ）
+ *   lgpwmng-share  … 選択したサービス／アカウントだけを受け渡す共有用ファイル
+ * 用途が異なるため、読み込み時に取り違えないよう互いに独立した形式・
+ * バージョンで管理する（Vault の schemaVersion とは無関係）。
+ */
+export const BACKUP_FORMAT = 'lgpwmng-backup';
+export const SHARE_FORMAT = 'lgpwmng-share';
+export const SHARE_FORMAT_VERSION = 1;
+
 export const FIELD_SCOPE = { SHARED: 'shared', ACCOUNT: 'account' };
 export const FIELD_KIND = { TEXT: 'text', SECRET: 'secret' };
 export const ACCOUNT_ROLE = { NORMAL: 'normal', ADMIN: 'admin' };
