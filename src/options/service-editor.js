@@ -87,6 +87,9 @@ export function createServiceEditor({ onChanged, onAccountsSaved }) {
   /**
    * オリジン入力欄。入力途中の値を正規化してしまわないよう、
    * 確定（フォーカスが外れた時点）で正規化し、その結果を画面へも反映する。
+   *
+   * 解釈できなかった入力は、打った内容のまま残す（消してしまうと何を入力したのか
+   * 分からなくなり、直しようがなくなるため）。形式の誤りは保存時に validate() が知らせる。
    */
   function originInput(rule, placeholder) {
     const input = el('input', {
@@ -95,9 +98,10 @@ export function createServiceEditor({ onChanged, onAccountsSaved }) {
       on: {
         change: () => {
           rule.origin = normalizeOrigin(input.value);
+          if (!rule.origin) return;
           input.value = rule.origin;
           // オリジンが確定すれば、protocol 未確定の旧条件は不要になる。
-          if (rule.origin) delete rule.legacy;
+          delete rule.legacy;
         },
       },
     });

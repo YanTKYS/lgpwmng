@@ -12,8 +12,8 @@ export const ROLE_LABELS = [
   [ACCOUNT_ROLE.ADMIN, '管理者'],
 ];
 
-export function select(options, value, onChange, className = '') {
-  const node = el('select', { className });
+export function select(options, value, onChange) {
+  const node = el('select');
   for (const [optionValue, label] of options) {
     node.append(el('option', { text: label, attrs: { value: optionValue } }));
   }
@@ -66,9 +66,12 @@ export function valueInput(field, value, onChange, onCommit) {
 
 /**
  * 「表示名 + 入力欄」の並びで項目値を描画する（サービス共通値 / アカウント値の双方で使う）。
- * onCommit を渡さない呼び出し（サービス共通値など）は自動保存の対象にならない。
+ *
+ * @param {Function} [onCommit] 値が確定した時点で呼ばれる（自動保存のトリガー用）。
+ *   渡さない呼び出し（サービス共通値など）は自動保存の対象にならない。
+ * @param {Function} [onEdit] 利用者が値を編集した時点で呼ばれる。
  */
-export function renderValueFields(container, fields, values, onCommit, onEdit) {
+export function renderValueFields(container, fields, values, { onCommit, onEdit } = {}) {
   clear(container);
   for (const field of fields) {
     container.append(el('div', {}, [
@@ -127,7 +130,7 @@ export function renderAccountCards(container, accounts, accountFields, { onRemov
 
     if (accountFields.length) {
       const grid = el('div', { className: 'value-grid' });
-      renderValueFields(grid, accountFields, account.values, onChange, onEdit);
+      renderValueFields(grid, accountFields, account.values, { onCommit: onChange, onEdit });
       card.append(grid);
     } else {
       card.append(el('p', { className: 'small muted', text: 'アカウント区分の項目がありません。' }));
