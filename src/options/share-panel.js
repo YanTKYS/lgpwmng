@@ -11,7 +11,13 @@ import { ACCOUNT_ROLE } from '../lib/model.js';
 import { $, clear, el, setStatus } from '../ui/dom.js';
 import { downloadJson, timestamp } from '../ui/download.js';
 
-export function createSharePanel() {
+/**
+ * @param {{onImported?: () => (void|Promise<void>)}} [options]
+ *   共有インポートが Vault へ反映された後に呼ばれる（サービス一覧・編集中サービスの再読込用）。
+ *   これを行わないと、インポート前から開いていた編集画面が古い accounts のまま残り、
+ *   その状態でアカウントを自動保存すると直前のインポート結果を上書きしてしまう。
+ */
+export function createSharePanel({ onImported } = {}) {
   const exportDialog = $('#share-export-dialog');
   const importDialog = $('#share-import-dialog');
 
@@ -34,8 +40,10 @@ export function createSharePanel() {
     });
   }
 
-  function renderExportCount() {
+  /** 選択件数と管理者警告を1か所で更新する。個別選択・全選択・初期描画のすべてから呼ぶ。 */
+  function renderExportState(services) {
     $('#share-export-count', exportDialog).textContent = `選択中: ${selectedCount()}件`;
+    $('#share-export-admin-notice', exportDialog).classList.toggle('hidden', !hasAdminSelected(services));
   }
 
   function renderExportServices(body, services) {
@@ -56,8 +64,7 @@ export function createSharePanel() {
             change: () => {
               if (checkbox.checked) set.add(account.id);
               else set.delete(account.id);
-              renderExportCount();
-              $('#share-export-admin-notice', exportDialog).classList.toggle('hidden', !hasAdminSelected(services));
+              renderExportState(services);
             },
           },
         });
@@ -91,7 +98,7 @@ export function createSharePanel() {
         ...rows,
       ]));
     }
-    renderExportCount();
+    renderExportState(services);
   }
 
   async function openExport() {
@@ -168,6 +175,8 @@ export function createSharePanel() {
     clear(list);
     for (const service of plan.services) {
       const rows = [
+        // 既存サービスは、共有側の URL条件・入力項目・sharedValues も取り込み時にマージ更新される。
+        ...(service.settingsUpdated ? ['サービス設定 → 更新'] : []),
         ...service.accountAdds.map((account) => `${account.name || '(名称未設定)'} → 追加`),
         ...service.accountUpdates.map((account) => `${account.name || '(名称未設定)'} → 更新`),
       ];
@@ -233,6 +242,11 @@ export function createSharePanel() {
     pending = null;
     try {
       const result = await request(MSG.SHARE_IMPORT_COMMIT, request_);
+      // Vault へ反映されたので、サービス一覧・編集中のサービスを最新の内容へ読み直す。
+      // これを怠ると、インポート前から開いていた編集画面が古い accounts のまま残り、
+      // そこでアカウントを自動保存すると今回追加・更新した内容を消してしまう。
+      // 取り込み自体は既に成功しているため、再読込の失敗を取り込み失敗として扱わない。
+      if (onImported) await Promise.resolve(onImported()).catch(() => {});
       const parts = [];
       if (result.serviceAdds) parts.push(`${result.serviceAdds}サービスを追加`);
       parts.push(`${result.accountAdds}アカウントを追加`);

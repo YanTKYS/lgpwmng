@@ -198,6 +198,10 @@ export function buildImportPlan(currentVault, shareServices) {
       serviceId: shareService.id,
       serviceName: shareService.name,
       isNewService: !existing,
+      // 既存サービスの場合、実際の取り込み（applyShareImport）は matchRules / fields /
+      // sharedValues も共有側の内容でマージ更新する。プレビューが account の増減しか
+      // 示さないと実処理と食い違うため、ここで示しておく。
+      settingsUpdated: Boolean(existing),
       accountAdds,
       accountUpdates,
     };

@@ -9,8 +9,6 @@ import { createSharePanel } from './share-panel.js';
 
 const state = { services: [], selectedId: null, filter: '' };
 
-createSharePanel();
-
 const editor = createServiceEditor({
   onChanged: async (serviceId) => {
     state.selectedId = serviceId;
@@ -18,6 +16,13 @@ const editor = createServiceEditor({
   },
   // アカウントの自動保存後は一覧の表示だけを更新する。編集中の内容は読み直さない。
   onAccountsSaved: () => { refreshList().catch(() => {}); },
+});
+
+createSharePanel({
+  // 共有インポートで Vault が更新されたら、一覧と編集中のサービスを読み直す。
+  // 読み直さないと、開いたままの編集画面が古い accounts を持ち続け、その後の
+  // アカウント自動保存でインポート結果を上書きしてしまう。
+  onImported: () => reloadServices(),
 });
 
 async function boot() {
