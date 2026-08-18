@@ -331,6 +331,11 @@ export function pageAgent(action, payload) {
     return typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(value) : value.replace(/[^\w-]/g, '\\$&');
   }
 
+  /**
+   * 手掛かりごとに空白・`_`・`-` を取り除いてから並べる（例: 「ユーザー ID」→「ユーザーid」）。
+   * 連結してから取り除くと手掛かりの区切りまで消えてしまい、隣り合う別々の属性が
+   * 一語につながって誤判定する（例: name="login" + labelText="ID2" が「loginid2」）。
+   */
   function guessMeaning(locator) {
     const haystack = [
       locator.elementId,
@@ -339,7 +344,7 @@ export function pageAgent(action, payload) {
       locator.placeholder,
       locator.ariaLabel,
       locator.labelText,
-    ].join(' ').toLowerCase().replace(/[\s_-]/g, '');
+    ].map((hint) => String(hint || '').toLowerCase().replace(/[\s_-]/g, '')).join(' ');
     for (const rule of GUESS_RULES) {
       if (rule.keys.some((key) => haystack.includes(key))) {
         return { label: rule.label, kind: rule.kind };

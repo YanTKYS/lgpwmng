@@ -199,7 +199,7 @@
 
         <section class="block">
           <h3>この拡張について</h3>
-          <p class="small muted">lgpwmng v0.5.2 / 外部通信なし・端末内のみで動作します。認証情報は AES-GCM で暗号化して保存されます。</p>
+          <p class="small muted">lgpwmng v0.5.3 / 外部通信なし・端末内のみで動作します。認証情報は AES-GCM で暗号化して保存されます。</p>
         </section>
       </section>
     </div>
@@ -232,7 +232,7 @@
     <div class="stack">
       <h3>共有用ファイルを取り込む</h3>
 
-      <div id="share-import-step-file" class="stack">
+      <form id="share-import-step-file" class="stack">
         <div>
           <div class="field-label">共有ファイル</div>
           <input type="file" id="share-import-file" accept=".json,application/json">
@@ -242,11 +242,11 @@
           <input type="password" id="share-import-passphrase" autocomplete="off">
         </div>
         <div class="row">
-          <button type="button" id="btn-share-import-decrypt" class="primary">内容を確認</button>
+          <button type="submit" id="btn-share-import-decrypt" class="primary">内容を確認</button>
           <button type="button" id="btn-share-import-cancel">閉じる</button>
           <div id="share-import-status" class="status"></div>
         </div>
-      </div>
+      </form>
 
       <div id="share-import-step-preview" class="stack hidden">
         <p class="small muted">既存のサービス・アカウントが置き換わることはありません。表示された対象のみ追加・更新します。</p>

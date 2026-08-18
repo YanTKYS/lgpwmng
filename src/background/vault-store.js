@@ -15,6 +15,7 @@ import {
   encryptJson,
   exportKey,
   importKey,
+  isEncryptedEnvelope,
 } from '../lib/crypto.js';
 import { BACKUP_FORMAT, SHARE_FORMAT, createVault, normalizeVault } from '../lib/model.js';
 import {
@@ -198,20 +199,9 @@ export async function exportBackup(passphrase) {
   };
 }
 
-/**
- * 復号を試みる前に、バックアップファイルとして必要な項目が揃っているか確認する。
- * 揃っていないまま復号へ進むと「パスフレーズが違います」と誤って案内してしまう。
- */
+/** バックアップファイルとして必要な項目が揃っているか（復号を試みる前の確認）。 */
 function isBackupFile(backup) {
-  return Boolean(
-    backup
-    && backup.format === BACKUP_FORMAT
-    && backup.kdf
-    && typeof backup.kdf.salt === 'string'
-    && Number.isFinite(backup.kdf.iterations)
-    && typeof backup.iv === 'string'
-    && typeof backup.data === 'string',
-  );
+  return Boolean(backup && backup.format === BACKUP_FORMAT && isEncryptedEnvelope(backup));
 }
 
 /**
