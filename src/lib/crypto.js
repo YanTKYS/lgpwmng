@@ -90,6 +90,27 @@ export async function decryptJson(key, envelope) {
   return JSON.parse(decodeUtf8(decrypted));
 }
 
+/**
+ * 暗号化ファイル（バックアップ／共有用）の外枠が揃っているか。
+ *
+ * 復号を試みる前に確認する。揃っていないまま復号へ進むと、単なる形式違いを
+ * 「パスフレーズが違います」と誤って案内してしまうため。
+ *
+ * @param {unknown} file
+ * @returns {boolean}
+ */
+export function isEncryptedEnvelope(file) {
+  return Boolean(
+    file
+    && typeof file === 'object'
+    && file.kdf
+    && typeof file.kdf.salt === 'string'
+    && Number.isFinite(file.kdf.iterations)
+    && typeof file.iv === 'string'
+    && typeof file.data === 'string',
+  );
+}
+
 /** 導出鍵を Base64 raw 形式で書き出す（session storage 退避用）。 */
 export async function exportKey(key) {
   return toBase64(await crypto.subtle.exportKey('raw', key));

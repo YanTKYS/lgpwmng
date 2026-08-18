@@ -356,7 +356,13 @@ function applyRescan(previousLocators, previousFrames) {
       row.frame = frame;
     }
     // 候補の並びが変わるため、取り込み済みの値との対応も取り直す。
-    if (!row.userEdited) row.capturedValue = index >= 0 ? (state.capturedValues[index] || '') : '';
+    // 既に確定している項目は、画面へ反映済みの値も同時に取り直す。ここで反映しないと、
+    // 行が別の入力欄を指すようになった後も、再スキャン前の候補の値が残ってしまう。
+    if (!row.userEdited) {
+      row.capturedValue = index >= 0 ? (state.capturedValues[index] || '') : '';
+      const field = findField(row);
+      if (field) applyCapturedValueToField(field, row);
+    }
     fillCandidateOptions(row.candidateSelect, index, index < 0 ? locator : null);
   });
   addRowsForUnusedCandidates(usedIndexes);

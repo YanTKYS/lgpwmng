@@ -122,6 +122,11 @@ export function createSharePanel({ onImported } = {}) {
 
   $('#btn-share-export-open').addEventListener('click', () => { openExport(); });
   $('#btn-share-export-cancel', exportDialog).addEventListener('click', () => exportDialog.close());
+  // 出力せずに閉じた場合（「閉じる」・Esc）も、入力済みのパスフレーズを画面に残さない。
+  exportDialog.addEventListener('close', () => {
+    $('#share-export-passphrase', exportDialog).value = '';
+    $('#share-export-passphrase-confirm', exportDialog).value = '';
+  });
 
   $('#share-export-form', exportDialog).addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -216,7 +221,10 @@ export function createSharePanel({ onImported } = {}) {
 
   importDialog.addEventListener('close', () => resetImportDialog());
 
-  $('#btn-share-import-decrypt', importDialog).addEventListener('click', async () => {
+  // 他の画面（アンロック・バックアップ復元）と同じく、パスフレーズ欄で Enter を押しても
+  // 確定できるよう form の submit として扱う。
+  $('#share-import-step-file', importDialog).addEventListener('submit', async (event) => {
+    event.preventDefault();
     const status = $('#share-import-status', importDialog);
     const fileInput = $('#share-import-file', importDialog);
     const passInput = $('#share-import-passphrase', importDialog);
@@ -234,14 +242,16 @@ export function createSharePanel({ onImported } = {}) {
     }
     try {
       const plan = await request(MSG.SHARE_IMPORT_PREVIEW, { file: parsed, passphrase: passInput.value });
+      // 取り込み対象が確定したので、以降は pending だけが保持する（入力欄には残さない）。
       pending = { file: parsed, passphrase: passInput.value };
+      passInput.value = '';
       renderPreview(plan);
       $('#share-import-step-file', importDialog).classList.add('hidden');
       $('#share-import-step-preview', importDialog).classList.remove('hidden');
     } catch (error) {
+      // 失敗時は入力内容を消さない。打ち間違い 1 文字のために、長いパスフレーズと
+      // ファイル選択をすべて入れ直すことになるため。
       setStatus(status, error.message, 'error');
-    } finally {
-      passInput.value = '';
     }
   });
 

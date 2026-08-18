@@ -21,7 +21,7 @@ import {
   normalizeService,
   normalizeVault,
 } from './model.js';
-import { createKdfParams, decryptJson, deriveKey, encryptJson } from './crypto.js';
+import { createKdfParams, decryptJson, deriveKey, encryptJson, isEncryptedEnvelope } from './crypto.js';
 
 export class ShareFileError extends Error {}
 
@@ -114,13 +114,7 @@ function classify(file) {
   if (file.format === BACKUP_FORMAT) return 'is-backup';
   if (file.format !== SHARE_FORMAT) return 'wrong-format';
   if (file.version !== SHARE_FORMAT_VERSION) return 'unsupported-version';
-  if (
-    !file.kdf
-    || typeof file.kdf.salt !== 'string'
-    || !Number.isFinite(file.kdf.iterations)
-    || typeof file.iv !== 'string'
-    || typeof file.data !== 'string'
-  ) return 'invalid';
+  if (!isEncryptedEnvelope(file)) return 'invalid';
   return 'ok';
 }
 
