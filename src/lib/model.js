@@ -31,6 +31,7 @@ export const SCHEMA_VERSION = 3;
  * バージョンで管理する（Vault の schemaVersion とは無関係）。
  */
 export const BACKUP_FORMAT = 'lgpwmng-backup';
+export const BACKUP_FORMAT_VERSION = 1;
 export const SHARE_FORMAT = 'lgpwmng-share';
 export const SHARE_FORMAT_VERSION = 1;
 

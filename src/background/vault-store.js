@@ -17,7 +17,13 @@ import {
   importKey,
   isEncryptedEnvelope,
 } from '../lib/crypto.js';
-import { BACKUP_FORMAT, SHARE_FORMAT, createVault, normalizeVault } from '../lib/model.js';
+import {
+  BACKUP_FORMAT,
+  BACKUP_FORMAT_VERSION,
+  SHARE_FORMAT,
+  createVault,
+  normalizeVault,
+} from '../lib/model.js';
 import {
   applyShareImport,
   buildImportPlan,
@@ -29,7 +35,7 @@ import {
 const LOCAL_RECORD_KEY = 'lgpwmng.vault';
 const SESSION_KEY_KEY = 'lgpwmng.sessionKey';
 
-export { BACKUP_FORMAT };
+export { BACKUP_FORMAT, BACKUP_FORMAT_VERSION };
 const VAULT_FORMAT = 'lgpwmng-vault';
 
 /** 復号済み Vault のメモリキャッシュ。Service Worker 終了時に失われる。 */
@@ -191,7 +197,7 @@ export async function exportBackup(passphrase) {
   const envelope = await encryptJson(key, vault);
   return {
     format: BACKUP_FORMAT,
-    version: 1,
+    version: BACKUP_FORMAT_VERSION,
     createdAt: new Date().toISOString(),
     kdf,
     iv: envelope.iv,
@@ -201,7 +207,10 @@ export async function exportBackup(passphrase) {
 
 /** バックアップファイルとして必要な項目が揃っているか（復号を試みる前の確認）。 */
 function isBackupFile(backup) {
-  return Boolean(backup && backup.format === BACKUP_FORMAT && isEncryptedEnvelope(backup));
+  return Boolean(backup
+    && backup.format === BACKUP_FORMAT
+    && backup.version === BACKUP_FORMAT_VERSION
+    && isEncryptedEnvelope(backup));
 }
 
 /**
@@ -213,6 +222,9 @@ function isBackupFile(backup) {
 export async function importBackup(backup, passphrase, mode) {
   if (backup && backup.format === SHARE_FORMAT) {
     throw new Error('これは共有用ファイルです。「バックアップを復元」ではなく「共有用ファイルを取り込む」から読み込んでください。');
+  }
+  if (backup && backup.format === BACKUP_FORMAT && backup.version !== BACKUP_FORMAT_VERSION) {
+    throw new Error('対応していないバージョンのバックアップファイルです。');
   }
   if (!isBackupFile(backup)) {
     throw new Error('バックアップファイルの形式が不正です。lgpwmng で書き出したファイルを選択してください。');
