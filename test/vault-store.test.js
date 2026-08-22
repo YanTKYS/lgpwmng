@@ -112,6 +112,16 @@ test('共有ファイルをマスターバックアップとして取り込め�
   await assert.rejects(() => store.importBackup(shareFile, 'share-pass-1', 'merge'));
 });
 
+test('非対応バージョンのマスターバックアップを取り込めない', async () => {
+  await seedVault();
+  const backup = await store.exportBackup('backup-pass-1');
+  backup.version += 1;
+  await assert.rejects(
+    () => store.importBackup(backup, 'backup-pass-1', 'replace'),
+    /対応していないバージョン/,
+  );
+});
+
 // --- アカウント共有: 背景側の一連の流れ -----------------------------------------
 
 test('共有エクスポート→プレビュー→取り込みが一気通貫で成立する', async () => {
