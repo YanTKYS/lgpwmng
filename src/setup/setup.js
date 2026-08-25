@@ -40,11 +40,9 @@ const state = {
   persisted: null,
   candidates: [],
   rows: [],
-  // ログイン画面から取得した現在値（capture の結果）。保存はせず、この画面の
-  // メモリ上でだけ下書きの初期値として扱う。新規サービスの設定を開始したときだけ
-  // 取得する（loadScan 完了後、値は state.candidates と対応付けた state.capturedValues
-  // に変換して使う。setCandidates() が呼ばれるたびに、その時点の candidates に合わせて
-  // 組み直す）。
+  // ログイン画面から取得した現在値（capture の結果）。保存はせず、この画面のメモリ上で
+  // だけ下書きの初期値として扱う。取得は新規サービスの設定を開始したときの 1 回だけで、
+  // candidates との対応付け（capturedValues）は setCandidates() で組み直す。
   capturedEntries: [],
   capturedValues: [],
   // capture はログイン中の一人分なので、このアカウント以外には決して展開しない。

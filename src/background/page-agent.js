@@ -490,6 +490,12 @@ export function pageAgent(action, payload) {
     if (element.checked !== shouldCheck) element.click();
   }
 
+  /**
+   * `element.value = ...` ではなく、プロトタイプの setter を直接呼ぶ。
+   * 一部のフレームワークは要素インスタンス側に value を上書き定義しており、
+   * 素直に代入すると内部の値追跡が更新されず、続く input イベントを
+   * 「値は変わっていない」として無視することがあるため。
+   */
   function setNativeValue(element, value) {
     const prototype = element.tagName.toLowerCase() === 'textarea'
       ? HTMLTextAreaElement.prototype

@@ -166,7 +166,7 @@ async function saveService(rawService) {
 /**
  * 現在のページに対応するサービスを返す。
  *
- * この時点で、protocol 未確定（v0.1.0 形式）の URL 条件のうち現在のページに
+ * この時点で、protocol 未確定（schemaVersion 1 形式）の URL 条件のうち現在のページに
  * 該当するものを、実際の origin で確定させて Vault へ保存する。
  * 判定に用いる URL は、可能な限り background 側で取得した値を優先する。
  */

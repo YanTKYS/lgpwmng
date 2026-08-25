@@ -140,10 +140,9 @@ export function renderAccountCards(container, accounts, accountFields, { onRemov
 }
 
 /**
- * 「アカウントを追加」で使う既定名。
- * 1 から数えて、まだ使われていない最初の番号を採る。
- * 件数から数え始めると、「標準ユーザー」1 件だけのサービスで最初の追加が
- * 「アカウント2」になるなど、番号が実態とずれてしまう。
+ * 「アカウントを追加」で使う既定名。1 から数えて、まだ使われていない最初の番号を採る。
+ * 件数からの採番（accounts.length + 1）にすると、「標準ユーザー」1 件だけのサービスで
+ * 最初の追加が「アカウント2」になったり、削除後の追加で既存名と重複したりする。
  */
 export function nextAccountName(accounts) {
   const used = new Set(accounts.map((account) => account.name));
