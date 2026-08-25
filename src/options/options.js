@@ -26,6 +26,7 @@ createSharePanel({
 });
 
 async function boot() {
+  $('#about-version').textContent = `v${chrome.runtime.getManifest().version}`;
   const status = await request(MSG.VAULT_STATUS);
   const locked = !status.unlocked;
   $('#locked').classList.toggle('hidden', !locked);
