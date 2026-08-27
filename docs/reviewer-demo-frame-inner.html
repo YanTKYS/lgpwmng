@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lgpwmng Reviewer Demo — フレーム内フォーム</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 1.25rem;
+    font-family: system-ui, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+    line-height: 1.7;
+    color: #1c1f23;
+    background: #fff;
+  }
+  h1 { font-size: 1rem; margin: 0 0 1rem; }
+  .field { margin-bottom: 0.9rem; }
+  label { display: block; font-size: 0.84rem; font-weight: 600; margin-bottom: 0.25rem; }
+  input {
+    width: 100%;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.95rem;
+    font-family: inherit;
+    border: 1px solid #9aa4af;
+    border-radius: 4px;
+    background: #fff;
+    color: #1c1f23;
+  }
+  button {
+    font: inherit;
+    padding: 0.5rem 1.2rem;
+    border: 0;
+    border-radius: 4px;
+    background: #1a4f8a;
+    color: #fff;
+    cursor: pointer;
+  }
+  #result {
+    margin: 0.9rem 0 0;
+    padding: 0.6rem 0.8rem;
+    border-radius: 4px;
+    background: #f1f3f5;
+    font-size: 0.85rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  #result:empty { display: none; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e6e9ee; background: #1b1f23; }
+    input { background: #14171a; color: #e6e9ee; border-color: #4a525b; }
+    #result { background: #22272c; }
+  }
+</style>
+</head>
+<body>
+<h1>フレーム内のログインフォーム（デモ）</h1>
+<form id="login-form" autocomplete="off">
+  <div class="field">
+    <label for="lgcode">自治体コード</label>
+    <input type="text" id="lgcode" name="lgcode" inputmode="numeric" autocomplete="off">
+  </div>
+  <div class="field">
+    <label for="userid">ユーザーID</label>
+    <input type="text" id="userid" name="userid" autocomplete="off">
+  </div>
+  <div class="field">
+    <label for="password">パスワード</label>
+    <input type="password" id="password" name="password" autocomplete="off">
+  </div>
+  <button type="submit">ログイン</button>
+</form>
+<p id="result" role="status"></p>
+
+<script>
+  // デモのため、送信は行わず入力内容を画面に表示するだけにする。
+  document.getElementById('login-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const mask = (value) => (value ? '*'.repeat(value.length) : '(未入力)');
+    document.getElementById('result').textContent = [
+      'デモのため送信していません。受け取った値:',
+      `  自治体コード: ${form.lgcode.value || '(未入力)'}`,
+      `  ユーザーID:   ${form.userid.value || '(未入力)'}`,
+      `  パスワード:   ${mask(form.password.value)}`,
+    ].join('\n');
+  });
+</script>
+</body>
+</html>

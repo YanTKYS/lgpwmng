@@ -2,6 +2,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "package": "node tools/webstore-package.mjs",
+    "docs": "node tools/build-docs.mjs"
   }
 }

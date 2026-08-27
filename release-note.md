@@ -5,6 +5,42 @@
 Vault のデータ形式（`schemaVersion`）を変更したリリースには、その旨を明記しています。
 明記のないリリースでは形式は変わっておらず、更新にあたって移行作業は不要です。
 
+## v0.6.0 — Chrome ウェブストア公開準備
+
+機能の仕様変更はありません。Vault の `schemaVersion` は 3 のままで、v0.5.x までに保存した
+データ・マスターバックアップ・共有用ファイルはそのまま利用できます。
+Chrome ウェブストアの審査・公開・更新運用に必要な説明とパッケージングを整備しました。
+
+- **プライバシーポリシーを追加しました。** リポジトリ直下の `PRIVACY.md` を出典とし、
+  GitHub Pages 用の `docs/privacy.html` を `node tools/build-docs.mjs` で生成します。
+  内容がずれていないことは `npm test` で検査します。
+- **審査用デモページを追加しました。** `docs/reviewer-demo.html`（frame を使わない基本ケース）と
+  `docs/reviewer-demo-frame.html`（iframe 内フォームの追加ケース）。架空の業務システムを模した
+  ダミーのログイン画面で、実在する組織名・ドメイン・認証情報は使用していません。
+  `docs/` は GitHub Pages で公開できる構成にしました（`docs/index.html`）。
+- **Chrome ウェブストアの申告資料を `docs/webstore/` へ整理しました。**
+  single purpose、権限ごとの利用理由、Privacy practices 申告案、リモートコードの申告、
+  ストア掲載文案、スクリーンショット撮影計画、アイコン点検結果、審査コメント欄へ貼る文、
+  申請チェックリスト。審査手順は `docs/webstore-review.md` にまとめています。
+- **公開用 ZIP を生成できるようにしました。** `npm run package` で
+  `dist/lgpwmng-webstore-v0.6.0.zip` を作成します。ZIP 直下に `manifest.json` があり、
+  中身は `manifest.json` / `icons/` / `src/` だけです（`docs/` `test/` `tools/` `.github/` は
+  含みません）。生成は Node 標準ライブラリのみで行い、外部依存を追加していません。
+- **GitHub Actions（`webstore-package`）を追加しました。** `main` への push、タグ、
+  pull request で `npm test` → バージョン確認 → 公開用 ZIP 生成 → artifact 化を行います。
+- **公開準備に関する自動テスト（`test/package.test.js`）を追加しました。**
+  manifest の妥当性・Manifest V3・権限が `activeTab` / `scripting` / `storage` のみで
+  `host_permissions` がないこと・`<all_urls>` の不在・CSP がリモートコードを許可しないこと・
+  外部通信 API とリモートコード参照の不在・`console` 出力の不在・公開用 ZIP の中身・
+  Privacy Policy と審査用デモの存在・バージョン整合を検査します。
+- **manifest の `description` を見直しました。** 「自治体専用」と受け取られないよう、
+  実際の用途（業務システムのログイン入力補助）に即した説明へ変更しました（132 文字以内）。
+- **README に Chrome ウェブストア・プライバシー・審査用デモへの導線を追加しました。**
+  詳細は `docs/webstore/` へ分離し、README は肥大化させていません。
+- 権限・リモートコード・外部通信・認証情報のログ出力を総点検しました。追加の権限はなく、
+  外部通信を行うコード・リモートコードの参照・`console` 出力はいずれも存在しませんでした
+  （修正が必要な箇所はありませんでした）。
+
 ## v0.5.4 — ドキュメントとバージョン表示の整理
 
 - README・リリースノートから、過去バージョンの経緯・重複した説明・機能範囲外の列挙を削除し、

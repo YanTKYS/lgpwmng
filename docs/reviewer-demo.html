@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lgpwmng Reviewer Demo — サンプルログイン画面</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem 1.25rem 4rem;
+    font-family: system-ui, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+    line-height: 1.7;
+    color: #1c1f23;
+    background: #eef1f5;
+  }
+  main { max-width: 44rem; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin: 0 0 0.5rem; }
+  .lead { margin: 0 0 1.5rem; font-size: 0.92rem; color: #4a525b; }
+  .panel {
+    background: #fff;
+    border: 1px solid #d3dae2;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+  .panel h2 { font-size: 1.05rem; margin: 0 0 1rem; }
+  .notice {
+    border-left: 4px solid #b8791b;
+    background: #fdf6e8;
+    padding: 0.75rem 1rem;
+    margin: 0 0 1.5rem;
+    font-size: 0.9rem;
+  }
+  .field { margin-bottom: 1rem; }
+  label { display: block; font-size: 0.86rem; font-weight: 600; margin-bottom: 0.3rem; }
+  input[type="text"], input[type="password"] {
+    width: 100%;
+    padding: 0.5rem 0.6rem;
+    font-size: 1rem;
+    font-family: inherit;
+    border: 1px solid #9aa4af;
+    border-radius: 4px;
+    background: #fff;
+    color: #1c1f23;
+  }
+  .hint { font-size: 0.8rem; color: #5a626b; margin: 0.25rem 0 0; }
+  button {
+    font: inherit;
+    padding: 0.55rem 1.4rem;
+    border: 0;
+    border-radius: 4px;
+    background: #1a4f8a;
+    color: #fff;
+    cursor: pointer;
+  }
+  button:hover { background: #14406f; }
+  #result {
+    margin: 1rem 0 0;
+    padding: 0.7rem 0.9rem;
+    border-radius: 4px;
+    background: #f1f3f5;
+    font-size: 0.88rem;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  #result:empty { display: none; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+  th, td { border: 1px solid #d3dae2; padding: 0.4rem 0.6rem; text-align: left; }
+  th { background: #f1f3f5; white-space: nowrap; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    background: #f1f3f5;
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-size: 0.88em;
+  }
+  ol { padding-left: 1.3rem; font-size: 0.9rem; }
+  li { margin: 0.25rem 0; }
+  footer { max-width: 44rem; margin: 2rem auto 0; font-size: 0.85rem; color: #5a626b; }
+  a { color: #0b5cab; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e6e9ee; background: #121517; }
+    .panel { background: #1b1f23; border-color: #333a42; }
+    .lead, .hint, footer { color: #9aa4af; }
+    .notice { background: #2a2313; border-left-color: #d5a13f; }
+    input[type="text"], input[type="password"] { background: #14171a; color: #e6e9ee; border-color: #4a525b; }
+    #result, code, th { background: #22272c; }
+    th, td { border-color: #333a42; }
+    a { color: #74b3f0; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>lgpwmng Reviewer Demo — サンプルログイン画面</h1>
+  <p class="lead">
+    Chrome 拡張機能 <strong>lgpwmng</strong> の動作確認用に用意した、架空の業務システムを模した
+    ログイン画面です。実在するシステム・組織・ドメイン・認証情報とは一切関係ありません。
+  </p>
+
+  <div class="notice">
+    <strong>このページはデモです。</strong>
+    「ログイン」を押しても認証は行われず、どこへも送信されません。入力された値はこのページの
+    JavaScript が画面へ表示するだけで、ページ外へ出ることはありません。
+  </div>
+
+  <section class="panel">
+    <h2>ログイン</h2>
+    <!-- 標準的な単一ページのフォーム。frame / iframe は使用していません。 -->
+    <form id="login-form" autocomplete="off">
+      <div class="field">
+        <label for="lgcode">自治体コード</label>
+        <input type="text" id="lgcode" name="lgcode" inputmode="numeric" autocomplete="off">
+        <p class="hint">6 桁の数字（デモ用の架空の値）</p>
+      </div>
+      <div class="field">
+        <label for="userid">ユーザーID</label>
+        <input type="text" id="userid" name="userid" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="password">パスワード</label>
+        <input type="password" id="password" name="password" autocomplete="off">
+      </div>
+      <button type="submit">ログイン</button>
+    </form>
+    <p id="result" role="status"></p>
+  </section>
+
+  <section class="panel">
+    <h2>デモ用のダミー認証情報</h2>
+    <p class="lead">
+      lgpwmng へ登録する値です。実在する認証情報ではありません。任意の値でも動作確認できます。
+    </p>
+    <table>
+      <tbody>
+        <tr><th>自治体コード</th><td><code>123456</code></td></tr>
+        <tr><th>ユーザーID</th><td><code>test-user</code></td></tr>
+        <tr><th>パスワード</th><td><code>test-pass-123</code></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>確認手順（概要）</h2>
+    <ol>
+      <li>このページを開いた状態で、lgpwmng のアイコンをクリックします。</li>
+      <li>初回はマスターパスワード（8 文字以上、任意の値）を設定します。</li>
+      <li>「このログイン画面を設定」を選び、上の 3 項目を登録します。</li>
+      <li>ダミー値を保存し、このページを再読み込みします。</li>
+      <li>再度アイコンをクリックし、アカウントを選んで「ログイン情報を入力」を実行します。</li>
+      <li>3 つの入力欄へ値が入ること、<strong>ログインボタンが自動で押されないこと</strong>を確認します。</li>
+    </ol>
+    <p class="lead">
+      詳細な手順は
+      <a href="https://github.com/YanTKYS/lgpwmng/blob/main/docs/webstore-review.md">docs/webstore-review.md</a>
+      を参照してください。frame / iframe 内のログインフォームに対応していることを確認する場合は、
+      <a href="./reviewer-demo-frame.html">frame 版のデモ</a>を使用してください。
+    </p>
+  </section>
+</main>
+
+<footer>
+  <p>
+    <a href="./">lgpwmng ドキュメント</a> /
+    <a href="./privacy.html">プライバシーポリシー</a> /
+    <a href="https://github.com/YanTKYS/lgpwmng">GitHub リポジトリ</a>
+  </p>
+</footer>
+
+<script>
+  // デモのため、送信は行わず入力内容を画面に表示するだけにする。
+  document.getElementById('login-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const mask = (value) => (value ? '*'.repeat(value.length) : '(未入力)');
+    document.getElementById('result').textContent = [
+      'デモのため送信していません。受け取った値:',
+      `  自治体コード: ${form.lgcode.value || '(未入力)'}`,
+      `  ユーザーID:   ${form.userid.value || '(未入力)'}`,
+      `  パスワード:   ${mask(form.password.value)}`,
+    ].join('\n');
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="index, follow">
+<title>lgpwmng プライバシーポリシー</title>
+<style>
+:root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+    max-width: 46rem;
+    font-family: system-ui, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+    line-height: 1.8;
+    color: #1c1f23;
+    background: #fff;
+  }
+  h1 { font-size: 1.6rem; line-height: 1.4; margin: 0 0 1.5rem; }
+  h2 { font-size: 1.2rem; margin: 2.5rem 0 0.75rem; padding-bottom: 0.35rem; border-bottom: 1px solid #d8dde3; }
+  h3 { font-size: 1.02rem; margin: 1.75rem 0 0.5rem; }
+  p, li { font-size: 0.95rem; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin: 0.3rem 0; }
+  a { color: #0b5cab; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 0.88em;
+    background: #f1f3f5;
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+  }
+  blockquote {
+    margin: 1.25rem 0;
+    padding: 0.6rem 1rem;
+    border-left: 4px solid #0b5cab;
+    background: #f4f7fb;
+  }
+  blockquote p { margin: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; display: block; overflow-x: auto; }
+  th, td { border: 1px solid #d8dde3; padding: 0.45rem 0.6rem; text-align: left; vertical-align: top; font-size: 0.9rem; }
+  th { background: #f1f3f5; white-space: nowrap; }
+  hr { border: 0; border-top: 1px solid #d8dde3; margin: 2rem 0; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #d8dde3; font-size: 0.85rem; color: #5a626b; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e6e9ee; background: #14171a; }
+    h2, hr, th, td, footer { border-color: #333a42; }
+    a { color: #74b3f0; }
+    code { background: #22272c; }
+    th { background: #1d2227; }
+    blockquote { background: #1b2129; border-left-color: #74b3f0; }
+    footer { color: #9aa4af; }
+  }
+</style>
+</head>
+<body>
+<main>
+<h1>lgpwmng プライバシーポリシー</h1>
+<ul>
+<li>対象: Chrome 拡張機能 <strong>lgpwmng</strong></li>
+<li>最終更新: 2026-08-27</li>
+</ul>
+<hr>
+<h2>1. 要約</h2>
+<p>lgpwmng は、利用者が端末内に登録した認証情報を、利用者の操作に応じてログインフォームへ 入力するための拡張機能です。</p>
+<ul>
+<li><strong>lgpwmng は、いかなる情報も外部サーバーへ送信しません。</strong></li>
+<li>拡張は外部 API・CDN・クラウド同期・分析基盤に接続しません。ネットワーク通信を行うコードを 一切含みません。</li>
+<li>取り扱う情報はすべて、利用者の端末内（<code>chrome.storage</code>）に保存されます。</li>
+<li>認証情報は、マスターパスワードから導出した鍵で暗号化して保存します（PBKDF2 + AES-GCM）。</li>
+<li>開発者は、利用者のデータを取得・閲覧・販売・第三者提供しません。取得していないため、 提供も販売もできません。</li>
+</ul>
+<h2>2. 取り扱う情報</h2>
+<p>lgpwmng は、利用者が自ら登録・操作した範囲で次の情報を扱います。</p>
+<table>
+<thead><tr><th>種類</th><th>内容</th><th>発生元</th></tr></thead>
+<tbody>
+<tr><td>認証情報</td><td>ログインID、パスワード、第二パスワード、PIN 等</td><td>利用者が設定画面で入力、または「このログイン画面を設定」時にページ上の入力済みの値を取り込み</td></tr>
+<tr><td>組織識別情報</td><td>自治体コード、団体コード、所属コード、職員番号 等</td><td>同上</td></tr>
+<tr><td>任意のフォーム入力値</td><td>利用者がサービスごとに定義した任意の入力項目の値</td><td>同上</td></tr>
+<tr><td>対象ページの URL</td><td>サービス判定に使うオリジン（プロトコル + ホスト名 + ポート）とパス</td><td>利用者が拡張アイコンを操作したときの現在のタブ／フレームの URL</td></tr>
+<tr><td>入力欄の構造情報</td><td>入力欄の種別・<code>id</code> / <code>name</code> / CSS セレクタ・フォーム内位置・ラベル文言・フレームの識別情報</td><td>「このログイン画面を設定」実行時のページ走査</td></tr>
+<tr><td>サービス名</td><td>利用者が付けた業務システムの名称（初期値はページタイトルまたはホスト名）</td><td>利用者の入力</td></tr>
+<tr><td>アカウント名・区分</td><td>アカウントの名称と通常 / 管理者の区分</td><td>利用者の入力</td></tr>
+<tr><td>メモ</td><td>利用者が任意に記載する備考</td><td>利用者の入力</td></tr>
+</tbody></table>
+<h3>扱わない情報</h3>
+<ul>
+<li>閲覧履歴、タブの一覧、ブックマーク</li>
+<li>Cookie、セッショントークン、ページ本文</li>
+<li>利用者の氏名・メールアドレス・アカウント登録情報（lgpwmng には利用者登録がありません）</li>
+<li>利用状況・操作ログ・クラッシュレポートなどのテレメトリ</li>
+</ul>
+<p>ページの走査は「このログイン画面を設定」を実行したときだけ行い、対象は入力欄 （<code>input</code> / <code>select</code> / <code>textarea</code>）の構造と、そのときの入力値に限られます。ページ本文・ リンク・画像などは取得しません。常駐する content script はなく、ページを継続的に監視しません。</p>
+<h2>3. 利用目的</h2>
+<p>取り扱う情報は、次の目的のためだけに利用します。</p>
+<ol>
+<li><strong>ログインフォームへの入力補助</strong> — 利用者が選択したアカウントの登録値を、登録済みの入力欄へ入力する。</li>
+<li><strong>サービス／アカウント設定の管理</strong> — 対象 URL、入力項目、共通値、アカウントを保存・表示・編集する。</li>
+<li><strong>バックアップ</strong> — 利用者の操作により、暗号化されたバックアップファイルを出力・復元する。</li>
+<li><strong>利用者が明示的に作成する共有用ファイル</strong> — 利用者が選択したアカウントだけを、暗号化ファイルとして出力・取り込みする。</li>
+</ol>
+<p>これ以外の目的（分析、機能改善のための収集、プロファイリング、広告）には利用しません。</p>
+<h2>4. 外部送信</h2>
+<blockquote><p><strong>lgpwmng は認証情報・URL・フォーム情報等を外部サーバーへ送信しません。</strong></p></blockquote>
+<ul>
+<li>拡張のコードには <code>fetch</code> / <code>XMLHttpRequest</code> / <code>WebSocket</code> / <code>EventSource</code> / <code>navigator.sendBeacon</code> を含む通信 API の呼び出しがありません。</li>
+<li>外部ドメインのスクリプト・スタイル・フォント・画像を読み込みません（CDN 不使用）。 すべてのリソースは拡張パッケージ内に含まれています。</li>
+<li>分析（Google Analytics 等）、広告、テレメトリ、クラッシュレポート、外部エラー収集 （Sentry 等）、自動更新チェック、クラウド同期のいずれも行いません。</li>
+<li>Google アカウント連携・OAuth・Native Messaging を使用しません。</li>
+<li>閉域ネットワーク（LGWAN 等）の端末でも、外部接続なしに全機能が動作します。</li>
+</ul>
+<p>拡張が通信を行わない設計であることは、<code>manifest.json</code> に <code>host_permissions</code> を持たないこと、 および自動テスト（<code>npm test</code>）で通信 API とリモートコード参照の不在を検査していることでも 担保しています。</p>
+<h2>5. 保存</h2>
+<table>
+<thead><tr><th>保存先</th><th>内容</th><th>保持期間</th></tr></thead>
+<tbody>
+<tr><td><code>chrome.storage.local</code></td><td>暗号化済みの Vault（登録データ全体）と KDF パラメータのみ</td><td>利用者が削除するまで</td></tr>
+<tr><td><code>chrome.storage.session</code></td><td>アンロック中の導出鍵</td><td>ブラウザ終了時、または「ロック」実行時まで</td></tr>
+<tr><td>Service Worker のメモリ</td><td>復号済みの Vault</td><td>Service Worker が停止するまで（永続化しません）</td></tr>
+</tbody></table>
+<ul>
+<li>保存先はすべて利用者の端末内です。開発者や第三者のサーバーには保存しません。</li>
+<li><strong>マスターパスワードそのものは保存しません。ハッシュも保存しません。</strong> 正否は、 AES-GCM の認証タグにより復号に成功するかどうかで判定します。したがって、マスターパスワードを 忘れた場合、開発者を含め誰も登録済みの認証情報を復元できません。</li>
+<li>鍵導出は PBKDF2-SHA256（310,000 回、16 バイトのランダムソルト）、暗号化は AES-GCM 256bit で、 いずれもブラウザの Web Crypto API を使用します。独自の暗号アルゴリズムは実装していません。</li>
+<li><strong>復号済みの Vault を永続保存しません。</strong> ディスクに書き出すのは暗号化された状態のものだけです。</li>
+<li>セッションキー（導出鍵）は <code>chrome.storage.session</code> にのみ保持します。この領域はブラウザの 終了時に破棄され、アクセスレベルは <code>TRUSTED_CONTEXTS</code>（拡張自身のページのみ）に設定しています。 Web ページ側からは参照できません。</li>
+<li>ページ側へ注入するコードには Vault 全体を渡しません。入力が必要になった項目の値だけを、 入力実行時に引数として渡します。</li>
+<li>拡張を削除すると、<code>chrome.storage</code> 上のデータは Chrome によって削除されます。</li>
+</ul>
+<h2>6. 共有ファイル・バックアップファイル</h2>
+<p>利用者が明示的に操作したときだけ、暗号化ファイルを端末内へ出力します。自動生成・自動送信は 行いません。</p>
+<p><strong>アカウント共有（<code>lgpwmng-share-*.json</code>）</strong></p>
+<ul>
+<li>出力されるのは、利用者がチェックして<strong>選択したアカウントだけ</strong>です。未選択のアカウントは ファイルに含まれません。</li>
+<li>ファイル全体を AES-GCM で暗号化します。平文の JSON として出力されることはありません。</li>
+<li>共有用パスフレーズはマスターパスワードとは<strong>独立</strong>に指定します（8 文字以上）。 このパスフレーズは <code>chrome.storage</code> / <code>localStorage</code> / <code>sessionStorage</code> / Vault のいずれにも 保存されず、処理中だけ使用します。</li>
+<li>作成されたファイルは、利用者が指定した保存先に置かれるだけです。<strong>自動送信・自動アップロード・ 共有フォルダ監視は行いません。</strong> 受け渡しは利用者自身が行います。</li>
+</ul>
+<p><strong>マスターバックアップ（<code>lgpwmng-backup-*.json</code>）</strong></p>
+<ul>
+<li>Vault 全体を、利用者が指定したバックアップ用パスフレーズ（マスターパスワードとは独立、 8 文字以上）で暗号化して出力します。こちらも自動送信は行いません。</li>
+</ul>
+<p>出力したファイルの管理（保管場所、受け渡し経路、廃棄）は利用者の責任範囲です。パスフレーズは ファイルとは別の経路で伝達することを推奨します。</p>
+<h2>7. データ販売・第三者提供・広告</h2>
+<ul>
+<li><strong>データ販売はありません。</strong> 利用者のデータを第三者へ販売・貸与しません。</li>
+<li><strong>広告目的の利用はありません。</strong> 広告の配信、パーソナライズ広告・リターゲティング広告への データ利用を行いません。</li>
+<li><strong>第三者提供はありません。</strong> データが端末外へ出る経路が存在しないため、提供が発生しません。</li>
+<li><strong>人による閲覧はありません。</strong> 開発者を含む誰も、利用者のデータを読むことができません。</li>
+</ul>
+<h2>8. Chrome ウェブストア「限定的な使用（Limited Use）」への適合</h2>
+<p>lgpwmng は、Chrome ウェブストアのユーザーデータポリシー（Limited Use の要件を含む）に準拠します。</p>
+<ul>
+<li><strong>許可された使用</strong>: 取り扱う情報は、本拡張の単一の目的である「利用者が端末内に登録した認証情報を ログインフォームへ入力する補助」と、それを支える設定管理・バックアップ・共有機能の提供のためだけに 使用します。</li>
+<li><strong>許可された転送</strong>: データを他者へ転送しません。転送を行う経路自体がありません。 利用者自身が作成した暗号化ファイルの受け渡しは、利用者の操作によるものです。</li>
+<li><strong>広告の禁止</strong>: パーソナライズ広告・リターゲティング広告・興味関心に基づく広告のために データを使用または転送しません。</li>
+<li><strong>人による閲覧の禁止</strong>: 開発者およびその関係者が利用者のデータを読むことはありません。</li>
+</ul>
+<h2>9. 権限と、その必要性</h2>
+<p>lgpwmng が要求する権限は次の 3 つだけです。<code>&lt;all_urls&gt;</code> などの広範な恒久的ホスト権限は 要求しません。</p>
+<table>
+<thead><tr><th>権限</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td><code>activeTab</code></td><td>利用者が拡張アイコンから操作した現在のタブに限り、そのページへアクセスするため</td></tr>
+<tr><td><code>scripting</code></td><td>現在のページの入力欄を検出し、利用者が選択した登録値を入力するため</td></tr>
+<tr><td><code>storage</code></td><td>暗号化された Vault・設定・セッション状態を端末内に保存するため</td></tr>
+</tbody></table>
+<p>ページへのアクセスは、利用者が拡張アイコンを押した時点に限られます。バックグラウンドで ページを走査したり、閲覧中のサイトを記録したりすることはありません。</p>
+<p>詳細は <a href="https://github.com/YanTKYS/lgpwmng/blob/main/docs/webstore/permissions.md">docs/webstore/permissions.md</a> を参照してください。</p>
+<h2>10. 子どものプライバシー</h2>
+<p>lgpwmng は業務システムのログイン補助を目的とした業務用ツールであり、子どもを対象としていません。 年齢に関する情報を含め、利用者に関する情報を収集しません。</p>
+<h2>11. 本ポリシーの変更</h2>
+<p>内容を変更した場合は、このファイルと Web 公開版を更新し、変更点を <a href="https://github.com/YanTKYS/lgpwmng/blob/main/release-note.md">release-note.md</a> に記載します。「最終更新」の日付で確認できます。</p>
+<h2>12. 問い合わせ</h2>
+<p>本拡張および本ポリシーに関する問い合わせは、GitHub リポジトリの Issues で受け付けます。</p>
+<ul>
+<li><a href="https://github.com/YanTKYS/lgpwmng/issues">https://github.com/YanTKYS/lgpwmng/issues</a></li>
+</ul>
+</main>
+<footer>
+<p>このページは、リポジトリの <a href="https://github.com/YanTKYS/lgpwmng/blob/main/PRIVACY.md">PRIVACY.md</a> から生成しています（<code>node tools/build-docs.mjs</code>）。両者の内容は同一です。</p>
+<p><a href="./">lgpwmng ドキュメント</a> / <a href="https://github.com/YanTKYS/lgpwmng">GitHub リポジトリ</a></p>
+</footer>
+</body>
+</html>
