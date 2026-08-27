@@ -21,7 +21,10 @@ Chrome ウェブストアの審査・公開・更新運用に必要な説明と�
   - **同意するまで、現在のタブの URL を取得しません**（`chrome.tabs.query()` を呼びません）。
     ページへのコード注入（走査・取り込み・入力・強調表示）も行いません。
   - 画面側の制御だけに頼らず、Service Worker 側でも `SERVICE_MATCH` / `PAGE_SCAN` /
-    `PAGE_CAPTURE` / `PAGE_HIGHLIGHT` / `FILL_RUN` の各要求で同意済みかを確認します。
+    `PAGE_CAPTURE` / `SCAN_RESULT_GET` / `PAGE_HIGHLIGHT` / `FILL_RUN` の各要求で同意済みかを
+    確認します。`SCAN_RESULT_GET` は新たに走査するものではありませんが、過去にページから取得した
+    入力欄の構造を読み出すため対象に含めています（更新直前の走査結果が
+    `chrome.storage.session` に残ったまま、まだ同意していない状態で読み出されるのを防ぎます）。
   - 同意の記録は `chrome.storage.local` の `privacyConsentVersion`（現在 1）と記録日時だけで、
     認証情報は含みません。扱うデータの内容を変えた場合はバージョンを上げて再同意を求めます。
   - 同じ内容を設定ページの「この拡張について」へ常設し、現在の同意状態も表示します。

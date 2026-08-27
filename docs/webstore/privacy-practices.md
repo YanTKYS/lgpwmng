@@ -134,7 +134,7 @@ lgpwmng はログイン入力補助のため、次の情報を扱います。
 | --- | --- |
 | 表示場所 | popup の最初の画面（`src/popup/popup.html` の `#view-consent`） |
 | 同意の操作 | 「同意して利用を開始」ボタンの明示的な押下 |
-| 同意前に行わないこと | `chrome.tabs.query()`、`SERVICE_MATCH`、`PAGE_SCAN`、`PAGE_CAPTURE`、`PAGE_HIGHLIGHT`、`FILL_RUN` |
+| 同意前に行わないこと | `chrome.tabs.query()`、`SERVICE_MATCH`、`PAGE_SCAN`、`PAGE_CAPTURE`、`SCAN_RESULT_GET`、`PAGE_HIGHLIGHT`、`FILL_RUN`。`SCAN_RESULT_GET` は新たな走査ではないが、過去にページから取得した入力欄の構造を読み出すため含める |
 | 二重の確認 | 画面側の制御に加え、Service Worker 側でも `requireConsent()` で確認する（`src/background/service-worker.js`） |
 | 同意の記録 | `chrome.storage.local` の `lgpwmng.consent` に `privacyConsentVersion`（現在 1）と `grantedAt` のみ。認証情報は含まない |
 | 再同意 | 扱うデータの内容を変えたら `CONSENT_VERSION` を上げる。古いバージョンへの同意は未同意として扱う |

@@ -143,6 +143,10 @@ async function handle(message) {
       return capturePage(payload.tabId);
 
     case MSG.SCAN_RESULT_GET: {
+      // 新たに走査するわけではないが、SCAN_KEY には過去にページから取得した
+      // 入力欄の構造が入っている。更新直後にまだ同意していない場合へ備えて、
+      // 読み出しにも同意を求める。
+      await requireConsent();
       const stored = (await chrome.storage.session.get(SCAN_KEY))[SCAN_KEY];
       // 別のタブを走査した結果を渡さない（設定ページが誤った入力欄を表示するため）。
       return stored && stored.tabId === payload.tabId ? stored : null;

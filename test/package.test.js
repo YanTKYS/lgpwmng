@@ -225,9 +225,18 @@ test('popup は同意を確認するまで現在のタブの URL を取得しな
 test('ページへ触れる処理は background でも同意を必須にしている', () => {
   // UI 側の制御だけに頼らず、要求の入口でも確認する。
   const source = stripComments(read('src/background/service-worker.js'));
-  const guarded = ['SERVICE_MATCH', 'PAGE_SCAN', 'PAGE_CAPTURE', 'PAGE_HIGHLIGHT', 'FILL_RUN'];
+  // ページを走査する処理だけでなく、過去にページから取得した内容を読み出す
+  // SCAN_RESULT_GET も対象にする。
+  const guarded = [
+    'SERVICE_MATCH',
+    'PAGE_SCAN',
+    'PAGE_CAPTURE',
+    'SCAN_RESULT_GET',
+    'PAGE_HIGHLIGHT',
+    'FILL_RUN',
+  ];
   for (const name of guarded) {
-    const pattern = new RegExp(`case MSG\\.${name}:\\s*\\n\\s*await requireConsent\\(\\);`);
+    const pattern = new RegExp(`case MSG\\.${name}:\\s*\\{?\\s*\\n\\s*await requireConsent\\(\\);`);
     assert.match(source, pattern, `${name} が requireConsent() で保護されていません`);
   }
 });
