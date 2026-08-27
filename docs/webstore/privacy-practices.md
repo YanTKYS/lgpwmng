@@ -98,12 +98,61 @@ activity の利用を認めています。lgpwmng の URL の扱いは、誤っ�
 ### 4.4 Limited Use への適合
 
 Chrome ウェブストアのユーザーデータポリシーが求める Limited Use 開示は、Privacy Policy の
-「8. Chrome ウェブストア『限定的な使用（Limited Use）』への適合」に記載しています。
+「9. Chrome ウェブストア『限定的な使用（Limited Use）』への適合」に記載しています。
 
 - 許可された使用: 単一目的とそれを支える機能のためだけに使用
 - 許可された転送: 転送しない（経路が存在しない）
 - 広告の禁止: 広告目的の利用・転送を行わない
 - 人による閲覧の禁止: 開発者を含め誰も閲覧できない
+
+### 4.5 目立つ開示と明示的な同意（Prominent disclosure / Affirmative consent）
+
+**v0.6.0 で、初回のデータ利用開示と明示的な同意を実装しました。**
+
+拡張アイコンを初めて押すと、popup に次の内容を示す画面が出ます。「同意して利用を開始」を
+押すまで、`chrome.tabs.query()` による現在のタブの URL 取得も、ページへのコード注入
+（走査・取り込み・入力）も行いません。
+
+```text
+lgpwmngのデータ利用について
+
+lgpwmng はログイン入力補助のため、次の情報を扱います。
+
+・現在のページの URL
+・ログインフォームの入力欄の情報
+・設定時に入力済みの値（ユーザーID・パスワード等を含む）
+
+これらは端末内でのみ処理・保存し、外部サーバーへ送信しません。
+認証情報はマスターパスワードから導出した鍵で暗号化して保存します。
+
+[同意して利用を開始]
+```
+
+実装は次のとおりです。
+
+| 項目 | 内容 |
+| --- | --- |
+| 表示場所 | popup の最初の画面（`src/popup/popup.html` の `#view-consent`） |
+| 同意の操作 | 「同意して利用を開始」ボタンの明示的な押下 |
+| 同意前に行わないこと | `chrome.tabs.query()`、`SERVICE_MATCH`、`PAGE_SCAN`、`PAGE_CAPTURE`、`PAGE_HIGHLIGHT`、`FILL_RUN` |
+| 二重の確認 | 画面側の制御に加え、Service Worker 側でも `requireConsent()` で確認する（`src/background/service-worker.js`） |
+| 同意の記録 | `chrome.storage.local` の `lgpwmng.consent` に `privacyConsentVersion`（現在 1）と `grantedAt` のみ。認証情報は含まない |
+| 再同意 | 扱うデータの内容を変えたら `CONSENT_VERSION` を上げる。古いバージョンへの同意は未同意として扱う |
+| 状態の確認 | 設定ページ →「マスターパスワード / バックアップ」タブ →「この拡張について」に表示 |
+| 開示の常設 | 同じ内容を、上記「この拡張について」に表として常時掲載する |
+| 自動テスト | 同意の確認が `chrome.tabs.query` より前にあること、5 つの要求が `requireConsent()` で保護されていることを `test/package.test.js` が検査。`consent.js` の挙動は `test/consent.test.js` |
+
+#### 位置づけについての補足
+
+ユーザーデータ FAQ の Q9 は、目立つ開示と明示的な同意が必要になるのは
+**(a) 個人情報・機微情報を扱い、かつ (b) その取り扱いがストア掲載ページと UI で目立つ形で
+説明されている機能と密接に関係しない場合**の両方を満たすときだ、としています。
+
+lgpwmng が扱う URL・入力欄・認証情報は、掲載ページと UI で説明している「ログイン入力補助」
+そのものに使うため、(b) には当てはまらない（＝厳密には必須ではない）という読み方もできます。
+それでも、認証情報という機微性の高いデータを扱う以上、利用者が内容を理解したうえで開始できる
+ほうが望ましいため、v0.6.0 で実装しています。審査時にも、扱うデータとその範囲を利用者へ
+どう示しているかを、実物の画面で確認してもらえます。
 
 ## 5. Privacy policy URL
 
@@ -125,3 +174,4 @@ https://yantkys.github.io/lgpwmng/privacy.html
 | 広範な権限なし | `manifest.json` の `permissions` が `activeTab` / `scripting` / `storage` のみ、`host_permissions` なしであることを `test/package.test.js` が検査 |
 | 端末内保存・暗号化 | `src/lib/crypto.js`（PBKDF2 + AES-GCM）、`src/background/vault-store.js`（`chrome.storage.local` / `session`） |
 | 認証情報をログへ出さない | `console` 出力がソース全体に存在しないことを `test/package.test.js` が検査 |
+| 同意前にデータへ触れない | `src/background/consent.js` の `requireConsent()`。popup の同意確認が `chrome.tabs.query` より前にあることを `test/package.test.js` が検査 |

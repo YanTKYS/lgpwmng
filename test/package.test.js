@@ -33,6 +33,11 @@ function extensionSources(extensions) {
   return collectPackageFiles(ROOT).filter((path) => extensions.some((ext) => path.endsWith(ext)));
 }
 
+/** コメントを除いたソース。文中の言及と実際の呼び出しを取り違えないために使う。 */
+function stripComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 function walkFiles(dir, base = ROOT, out = []) {
   for (const name of readdirSync(join(base, dir))) {
     const path = posix.join(dir, name);
@@ -197,6 +202,49 @@ test('テストのダミー認証情報が実在の資格情報らしくない',
   for (const dummy of ['123456', 'test-user', 'test-pass-123']) {
     assert.ok(demo.includes(dummy), `審査用デモにダミー値 ${dummy} の記載がありません`);
   }
+});
+
+// --- 初回の開示と明示的な同意 -----------------------------------------------------
+
+test('popup は同意を確認するまで現在のタブの URL を取得しない', () => {
+  // Chrome ウェブストアは、データを扱う前に開示と明示的な同意を求める。
+  // popup.js では CONSENT_STATUS の確認が chrome.tabs.query より前にあること。
+  const source = stripComments(read('src/popup/popup.js'));
+  const consentAt = source.indexOf('MSG.CONSENT_STATUS');
+  const queryAt = source.indexOf('chrome.tabs.query');
+  assert.ok(consentAt >= 0, 'popup.js が同意状態を確認していません');
+  assert.ok(queryAt >= 0, 'popup.js が chrome.tabs.query を呼んでいません');
+  assert.ok(
+    consentAt < queryAt,
+    'popup.js が同意の確認より先に chrome.tabs.query を呼んでいます',
+  );
+  // 同意を記録する導線があること。
+  assert.ok(source.includes('MSG.CONSENT_GRANT'), 'popup.js に同意を記録する処理がありません');
+});
+
+test('ページへ触れる処理は background でも同意を必須にしている', () => {
+  // UI 側の制御だけに頼らず、要求の入口でも確認する。
+  const source = stripComments(read('src/background/service-worker.js'));
+  const guarded = ['SERVICE_MATCH', 'PAGE_SCAN', 'PAGE_CAPTURE', 'PAGE_HIGHLIGHT', 'FILL_RUN'];
+  for (const name of guarded) {
+    const pattern = new RegExp(`case MSG\\.${name}:\\s*\\n\\s*await requireConsent\\(\\);`);
+    assert.match(source, pattern, `${name} が requireConsent() で保護されていません`);
+  }
+});
+
+test('popup の同意画面が扱う情報と外部送信しないことを示している', () => {
+  const html = read('src/popup/popup.html');
+  assert.ok(html.includes('id="view-consent"'), 'popup に同意画面がありません');
+  for (const phrase of ['URL', '入力欄', 'パスワード', '外部サーバーへ送信しません']) {
+    assert.ok(html.includes(phrase), `同意画面に「${phrase}」の記載がありません`);
+  }
+  assert.ok(html.includes('id="btn-consent"'), '同意する操作のボタンがありません');
+});
+
+test('同意の記録は認証情報と別に保存し、バージョンで再同意できる', () => {
+  const source = read('src/background/consent.js');
+  assert.match(source, /CONSENT_VERSION\s*=\s*\d+/, '開示バージョンの定数がありません');
+  assert.ok(source.includes('chrome.storage.local'), '同意状態の保存先が chrome.storage.local ではありません');
 });
 
 // --- 公開用パッケージ -----------------------------------------------------------

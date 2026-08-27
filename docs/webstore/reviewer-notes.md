@@ -25,17 +25,23 @@ Developer Dashboard で **Submit for Review** を押したときのダイアロ�
 【確認手順】
 1. Reviewer Demo ページを開く
 2. lgpwmng のアイコンをクリックする
-3. マスターパスワードを設定する（初回のみ、8 文字以上の任意の値）
-4. 「このログイン画面を設定」を選択する
-5. 自治体コード / ユーザーID / パスワードの入力欄が候補として表示されることを確認する
-6. 上記のダミー値を入力して「保存」を押す
-7. Reviewer Demo のタブへ戻り、再読み込みする
-8. lgpwmng のアイコンをクリックし、アカウントを選択する
-9. 「ログイン情報を入力」を実行する
-10. 3 つの入力欄へ値が入ることを確認する
-11. ログインボタンが自動で押されないことを確認する
+3. 初回のみ「lgpwmng のデータ利用について」が表示される。扱う情報・用途・外部送信しないことを
+   確認し、「同意して利用を開始」を押す
+4. マスターパスワードを設定する（初回のみ、8 文字以上の任意の値）
+5. 「このログイン画面を設定」を選択する
+6. 自治体コード / ユーザーID / パスワードの入力欄が候補として表示されることを確認する
+7. 上記のダミー値を入力して「保存」を押す
+8. Reviewer Demo のタブへ戻り、再読み込みする
+9. lgpwmng のアイコンをクリックし、アカウントを選択する
+10.「ログイン情報を入力」を実行する
+11. 3 つの入力欄へ値が入ることを確認する
+12. ログインボタンが自動で押されないことを確認する
 
 【補足】
+・初回に扱うデータの開示と明示的な同意を行います。同意するまで、現在のタブの URL の取得
+  （chrome.tabs.query）もページへのコード注入も行いません。同意状態は画面側だけでなく
+  Service Worker 側でも確認しています。同意の記録は chrome.storage.local に開示バージョンのみで、
+  認証情報は含みません。
 ・リモートコードは使用していません。
 ・ネットワーク通信を行うコードを含みません（fetch / XMLHttpRequest / WebSocket /
   EventSource / sendBeacon のいずれも使用していません）。host_permissions もありません。
@@ -67,17 +73,24 @@ Set any master password of 8+ characters. It is never stored or transmitted.
 [Steps]
 1. Open the Reviewer Demo page.
 2. Click the lgpwmng toolbar icon.
-3. Set a master password (first run only; any value with 8+ characters).
-4. Choose "このログイン画面を設定" (Set up this login page).
-5. Confirm the three fields are detected as candidates.
-6. Enter the dummy values above and press "保存" (Save).
-7. Go back to the Reviewer Demo tab and reload it.
-8. Click the lgpwmng icon and select an account.
-9. Run "ログイン情報を入力" (Fill login information).
-10. Confirm the three fields are filled.
-11. Confirm the login button is NOT clicked automatically.
+3. On first run a data-use disclosure appears ("lgpwmng のデータ利用について"). It lists what the
+   extension handles and states that nothing is sent to any server. Press
+   "同意して利用を開始" (Agree and start).
+4. Set a master password (first run only; any value with 8+ characters).
+5. Choose "このログイン画面を設定" (Set up this login page).
+6. Confirm the three fields are detected as candidates.
+7. Enter the dummy values above and press "保存" (Save).
+8. Go back to the Reviewer Demo tab and reload it.
+9. Click the lgpwmng icon and select an account.
+10. Run "ログイン情報を入力" (Fill login information).
+11. Confirm the three fields are filled.
+12. Confirm the login button is NOT clicked automatically.
 
 [Notes]
+- A prominent data-use disclosure with affirmative consent is shown on first run. Before consent is
+  given the extension does not read the active tab's URL (no chrome.tabs.query) and injects no code
+  into any page. This is enforced in the service worker as well as in the popup UI. Only the
+  disclosure version is stored (chrome.storage.local); no credential is part of that record.
 - No remote code is used.
 - The extension contains no networking code at all (no fetch, XMLHttpRequest, WebSocket,
   EventSource or sendBeacon) and declares no host_permissions.

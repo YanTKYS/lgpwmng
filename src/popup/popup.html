@@ -8,6 +8,31 @@
 </head>
 <body>
   <main id="app">
+    <!-- データ利用への同意（初回のみ。同意するまでページへ触れない） -->
+    <section id="view-consent" class="view hidden">
+      <h1>lgpwmngのデータ利用について</h1>
+      <p class="small">lgpwmng はログイン入力補助のため、次の情報を扱います。</p>
+      <ul class="small consent-list">
+        <li>現在のページの URL</li>
+        <li>ログインフォームの入力欄の情報</li>
+        <li>設定時に入力済みの値（ユーザーID・パスワード等を含む）</li>
+      </ul>
+      <p class="small">
+        これらは端末内でのみ処理・保存し、<strong>外部サーバーへ送信しません</strong>。
+        認証情報はマスターパスワードから導出した鍵で暗号化して保存します。
+      </p>
+      <p class="small muted">
+        情報を扱うのは、利用者が拡張アイコンから操作したときだけです。
+        同意するまで、ページの URL や入力欄を読み取ることはありません。
+      </p>
+      <button id="btn-consent" class="primary" type="button">同意して利用を開始</button>
+      <div id="consent-status" class="status"></div>
+      <p class="small muted">
+        詳しい説明は、同意後に「サービス一覧」→「マスターパスワード / バックアップ」タブの
+        「この拡張について」で確認できます。
+      </p>
+    </section>
+
     <!-- 初回セットアップ -->
     <section id="view-init" class="view hidden">
       <h1>マスターパスワードの設定</h1>

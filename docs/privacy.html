@@ -125,12 +125,13 @@
 <table>
 <thead><tr><th>保存先</th><th>内容</th><th>保持期間</th></tr></thead>
 <tbody>
-<tr><td><code>chrome.storage.local</code></td><td>暗号化済みの Vault（登録データ全体）と KDF パラメータのみ</td><td>利用者が削除するまで</td></tr>
+<tr><td><code>chrome.storage.local</code></td><td>暗号化済みの Vault（登録データ全体）、KDF パラメータ、および非機密の設定情報（データ利用への同意バージョン等）</td><td>利用者が削除するまで</td></tr>
 <tr><td><code>chrome.storage.session</code></td><td>アンロック中の導出鍵</td><td>ブラウザ終了時、または「ロック」実行時まで</td></tr>
 <tr><td>Service Worker のメモリ</td><td>復号済みの Vault</td><td>Service Worker が停止するまで（永続化しません）</td></tr>
 </tbody></table>
 <ul>
 <li>保存先はすべて利用者の端末内です。開発者や第三者のサーバーには保存しません。</li>
+<li><code>chrome.storage.local</code> に平文で置くのは、同意バージョン（<code>privacyConsentVersion</code>）のような <strong>認証情報を含まない設定情報だけ</strong>です。認証情報・URL 条件・入力欄の情報は、すべて暗号化された Vault の中にあります。</li>
 <li><strong>マスターパスワードそのものは保存しません。ハッシュも保存しません。</strong> 正否は、 AES-GCM の認証タグにより復号に成功するかどうかで判定します。したがって、マスターパスワードを 忘れた場合、開発者を含め誰も登録済みの認証情報を復元できません。</li>
 <li>鍵導出は PBKDF2-SHA256（310,000 回、16 バイトのランダムソルト）、暗号化は AES-GCM 256bit で、 いずれもブラウザの Web Crypto API を使用します。独自の暗号アルゴリズムは実装していません。</li>
 <li><strong>復号済みの Vault を永続保存しません。</strong> ディスクに書き出すのは暗号化された状態のものだけです。</li>
@@ -138,7 +139,17 @@
 <li>ページ側へ注入するコードには Vault 全体を渡しません。入力が必要になった項目の値だけを、 入力実行時に引数として渡します。</li>
 <li>拡張を削除すると、<code>chrome.storage</code> 上のデータは Chrome によって削除されます。</li>
 </ul>
-<h2>6. 共有ファイル・バックアップファイル</h2>
+<h2>6. 初回の開示と同意</h2>
+<p><strong>lgpwmng は、利用者が同意するまで、ページの URL も入力欄の情報も読み取りません。</strong></p>
+<p>拡張アイコンを初めて押したとき、popup に「lgpwmng のデータ利用について」という画面が表示され、 次の内容を示します。</p>
+<ul>
+<li>扱う情報（現在のページの URL、ログインフォームの入力欄の情報、設定時に入力済みの値。 ユーザーID・パスワード等を含む）</li>
+<li>用途（ログイン入力補助）</li>
+<li>端末内でのみ処理・保存し、外部サーバーへ送信しないこと</li>
+</ul>
+<p>「同意して利用を開始」を押して初めて、現在のタブの URL の取得を含む通常の処理が始まります。 それ以前は、<code>chrome.tabs.query()</code> の呼び出しも、ページへのコード注入（走査・取り込み・入力）も 行いません。この制御は画面側だけでなく、要求を受ける Service Worker 側でも確認しています。</p>
+<p>同意した内容は、同意した開示のバージョン（<code>privacyConsentVersion</code>）として <code>chrome.storage.local</code> に記録します。認証情報は含みません。扱う情報の内容を変更した場合は バージョンを上げ、改めて同意を求めます。現在の同意状態は、設定ページの 「マスターパスワード / バックアップ」タブ →「この拡張について」で確認できます。</p>
+<h2>7. 共有ファイル・バックアップファイル</h2>
 <p>利用者が明示的に操作したときだけ、暗号化ファイルを端末内へ出力します。自動生成・自動送信は 行いません。</p>
 <p><strong>アカウント共有（<code>lgpwmng-share-*.json</code>）</strong></p>
 <ul>
@@ -152,14 +163,14 @@
 <li>Vault 全体を、利用者が指定したバックアップ用パスフレーズ（マスターパスワードとは独立、 8 文字以上）で暗号化して出力します。こちらも自動送信は行いません。</li>
 </ul>
 <p>出力したファイルの管理（保管場所、受け渡し経路、廃棄）は利用者の責任範囲です。パスフレーズは ファイルとは別の経路で伝達することを推奨します。</p>
-<h2>7. データ販売・第三者提供・広告</h2>
+<h2>8. データ販売・第三者提供・広告</h2>
 <ul>
 <li><strong>データ販売はありません。</strong> 利用者のデータを第三者へ販売・貸与しません。</li>
 <li><strong>広告目的の利用はありません。</strong> 広告の配信、パーソナライズ広告・リターゲティング広告への データ利用を行いません。</li>
 <li><strong>第三者提供はありません。</strong> データが端末外へ出る経路が存在しないため、提供が発生しません。</li>
 <li><strong>人による閲覧はありません。</strong> 開発者を含む誰も、利用者のデータを読むことができません。</li>
 </ul>
-<h2>8. Chrome ウェブストア「限定的な使用（Limited Use）」への適合</h2>
+<h2>9. Chrome ウェブストア「限定的な使用（Limited Use）」への適合</h2>
 <p>lgpwmng は、Chrome ウェブストアのユーザーデータポリシー（Limited Use の要件を含む）に準拠します。</p>
 <ul>
 <li><strong>許可された使用</strong>: 取り扱う情報は、本拡張の単一の目的である「利用者が端末内に登録した認証情報を ログインフォームへ入力する補助」と、それを支える設定管理・バックアップ・共有機能の提供のためだけに 使用します。</li>
@@ -167,7 +178,7 @@
 <li><strong>広告の禁止</strong>: パーソナライズ広告・リターゲティング広告・興味関心に基づく広告のために データを使用または転送しません。</li>
 <li><strong>人による閲覧の禁止</strong>: 開発者およびその関係者が利用者のデータを読むことはありません。</li>
 </ul>
-<h2>9. 権限と、その必要性</h2>
+<h2>10. 権限と、その必要性</h2>
 <p>lgpwmng が要求する権限は次の 3 つだけです。<code>&lt;all_urls&gt;</code> などの広範な恒久的ホスト権限は 要求しません。</p>
 <table>
 <thead><tr><th>権限</th><th>用途</th></tr></thead>
@@ -179,11 +190,11 @@
 <p>ページへのアクセスは、利用者が拡張アイコンを押した時点に限られます。バックグラウンドで ページを走査したり、閲覧中のサイトを記録したりすることはありません。</p>
 <p>Chrome ウェブストアの Developer Dashboard では、扱うデータの種類として <strong>Personally identifiable information / Authentication information / Website content / Web history</strong> を申告しています。いずれも端末内で扱うだけで、外部へ送信することはありません （分類の理由は「2. 取り扱う情報」および <a href="https://github.com/YanTKYS/lgpwmng/blob/main/docs/webstore/privacy-practices.md">docs/webstore/privacy-practices.md</a> を参照してください）。</p>
 <p>詳細は <a href="https://github.com/YanTKYS/lgpwmng/blob/main/docs/webstore/permissions.md">docs/webstore/permissions.md</a> を参照してください。</p>
-<h2>10. 子どものプライバシー</h2>
+<h2>11. 子どものプライバシー</h2>
 <p>lgpwmng は業務システムのログイン補助を目的とした業務用ツールであり、子どもを対象としていません。 年齢に関する情報を含め、利用者に関する情報を収集しません。</p>
-<h2>11. 本ポリシーの変更</h2>
+<h2>12. 本ポリシーの変更</h2>
 <p>内容を変更した場合は、このファイルと Web 公開版を更新し、変更点を <a href="https://github.com/YanTKYS/lgpwmng/blob/main/release-note.md">release-note.md</a> に記載します。「最終更新」の日付で確認できます。</p>
-<h2>12. 問い合わせ</h2>
+<h2>13. 問い合わせ</h2>
 <p>本拡張および本ポリシーに関する問い合わせは、GitHub リポジトリの Issues で受け付けます。</p>
 <ul>
 <li><a href="https://github.com/YanTKYS/lgpwmng/issues">https://github.com/YanTKYS/lgpwmng/issues</a></li>

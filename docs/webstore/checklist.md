@@ -18,6 +18,8 @@
 - [x] 外部通信を行うコードがない（`fetch` / `XMLHttpRequest` / `WebSocket` / `EventSource` / `sendBeacon` / `importScripts`）
 - [x] リモートコードの参照がない（外部 URL のスクリプト・`eval` / `new Function`）
 - [x] 認証情報がログ・例外メッセージへ出力されない（`console` 出力自体が存在しない）
+- [x] 初回にデータ利用の開示と明示的な同意を行い、同意前は URL 取得・コード注入を行わない
+      （popup の同意画面 + Service Worker 側の `requireConsent()`）
 - [x] 公開用 ZIP を生成でき、直下に `manifest.json` がある
 - [x] 公開用 ZIP に `docs/` `test/` `.github/` `tools/` などが混入しない
 - [x] 実行に必要なファイルが公開用 ZIP から漏れていない
@@ -122,6 +124,8 @@ Marquee promo tile（1400x560）だけが任意です。
       Web history をチェックするのは、Chrome の閲覧履歴を取得しているという意味ではなく、
       対象ログイン画面の URL（origin + pathname）を扱うためです。理由は
       [privacy-practices.md](privacy-practices.md) を参照してください
+- [ ] 審査コメント欄で、初回の開示と同意（[privacy-practices.md](privacy-practices.md) の 4.5）に
+      触れておく。実物の画面で確認してもらえる
 - [ ] **Certifications** の 3 つすべてにチェックを入れる
       - [ ] 第三者へのデータ販売・転送を行わない
       - [ ] 単一目的と無関係な用途にデータを使用・転送しない
