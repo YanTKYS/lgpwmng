@@ -8,7 +8,11 @@
 - 認証情報は Web Crypto API（PBKDF2 + AES-GCM）で暗号化して端末内にのみ保存します
 - ログインボタンの自動押下は行いません。最終的なログイン操作は利用者が行います
 
-各バージョンの変更内容は [release-note.md](release-note.md) を参照してください。
+現在のバージョン: v0.6.0 — 各バージョンの変更内容は [release-note.md](release-note.md) を参照してください。
+
+- プライバシーポリシー: [PRIVACY.md](PRIVACY.md) / <https://yantkys.github.io/lgpwmng/privacy.html>
+- 動作確認用デモ（Reviewer Demo）: <https://yantkys.github.io/lgpwmng/reviewer-demo.html>
+- Chrome ウェブストア公開の申告資料・手順: [docs/webstore/](docs/webstore/)
 
 ---
 
@@ -33,13 +37,20 @@ lgpwmng は、**サービス単位で任意の入力項目を定義**し、
 | ブラウザ | Google Chrome / Chromium 116 以上（Manifest V3） |
 | OS | Windows / macOS / Linux（拡張が動作する環境） |
 | ネットワーク | 閉域（LGWAN 等）で利用可能。拡張は外部通信を行いません |
-| 配布方法 | Chrome ウェブストアを経由しない、組織内での手動配布 |
+| 配布方法 | Chrome ウェブストア（公開準備中）、または組織内での手動配布 |
 | 権限 | `activeTab` / `scripting` / `storage` のみ |
 
 `<all_urls>` などの広範な恒久権限は要求しません。ページへのアクセスは、
 **利用者が拡張アイコンを操作したタイミング**に限られます（常駐 content script はありません）。
 
 ## 3. インストール方法
+
+### 3.1 Chrome ウェブストアから
+
+公開準備中です。公開後は、ストアのページからインストールできます。
+申請に必要な資料と手順は [docs/webstore/checklist.md](docs/webstore/checklist.md) にまとめています。
+
+### 3.2 手動で読み込む（組織内配布・開発時）
 
 1. 本リポジトリの内容を、端末内の任意のフォルダへ配置します（例: `C:\tools\lgpwmng`）。
 2. Chrome で `chrome://extensions` を開きます。
@@ -48,14 +59,20 @@ lgpwmng は、**サービス単位で任意の入力項目を定義**し、
 5. ツールバーに lgpwmng のアイコンが表示されれば読み込み完了です（必要に応じてピン留めしてください）。
 
 > 組織内展開時は、フォルダごと配布するか、`chrome://extensions` の「拡張機能をパッケージ化」で
-> `.crx` を作成して配布してください。Chrome ウェブストアへの公開は前提としていません。
+> `.crx` を作成して配布してください。`npm run package` で生成される
+> `dist/lgpwmng-webstore-v<version>.zip` を展開したものも同じ内容です。
 
 ## 4. 基本的な使い方
 
-### 4.1 マスターパスワードの設定（初回のみ）
+### 4.1 データ利用への同意とマスターパスワードの設定（初回のみ）
 
 1. 拡張アイコンをクリックします。
-2. マスターパスワード（8 文字以上）を 2 回入力し、「設定する」を押します。
+2. **「lgpwmng のデータ利用について」** が表示されます。扱う情報（現在のページの URL・入力欄の
+   情報・入力済みの値）と、外部送信しないことを確認し、「同意して利用を開始」を押します。
+   - **同意するまで、現在のタブの URL を取得しません。** ページへのコード注入も行いません。
+   - 同意の記録は開示バージョンだけで、認証情報は含みません。2 回目以降は表示されません。
+     現在の状態は設定ページの「この拡張について」で確認できます。
+3. マスターパスワード（8 文字以上）を 2 回入力し、「設定する」を押します。
 
 登録した認証情報はこのパスワードから導出した鍵で暗号化されます。
 **マスターパスワードは保存されないため、忘れると登録済みの認証情報を復元できません。**
@@ -360,6 +377,8 @@ popup 上のアカウント一覧から選択して切り替えます。
 - **秘密項目は入力欄の特定が確実な場合のみ入力します。** 識別情報の一致が弱い場合、通常項目は警告付きで
   入力しますが、パスワード等の秘密項目は入力せず、設定の更新を促します。
 - 秘密情報を `console` へ出力しません。ページ走査結果に入力欄の値は含めません。
+- **初回の同意を得るまで、ページに関わる処理を一切行いません。** URL の取得・走査・入力の各要求は、
+  画面側だけでなく Service Worker 側でも同意済みかを確認します。
 
 利用上の注意:
 
@@ -405,6 +424,7 @@ src/
     messages.js             拡張内メッセージ種別
   background/
     service-worker.js       メッセージ処理・注入の実行
+    consent.js              データ利用への初回同意の記録・確認
     vault-store.js          暗号化保存・ロック状態管理・バックアップ/共有の入出力
     page-agent.js           ページ内で実行する走査 / 入力 / 現在値取得 / 強調表示処理
   ui/
@@ -418,9 +438,34 @@ src/
     share-panel.js          アカウント共有の UI（共有用エクスポート／インポート）
   setup/                    ログイン画面設定ページ（入力欄の対応付け）
 test/                       自動テスト（`npm test` / node:test。ブラウザ不要）
+tools/                      公開用 ZIP の生成・公開ドキュメントの生成（Node 標準のみ）
+docs/                       GitHub Pages で公開するドキュメントと審査用デモ
+  webstore/                 Chrome ウェブストアの申告資料・掲載文案・チェックリスト
+PRIVACY.md                  プライバシーポリシー（docs/privacy.html の出典）
 ```
 
-## 13. 既知の制限
+公開用 ZIP（`manifest.json` / `icons/` / `src/` のみ）は `npm run package` で生成します。
+`test/` `docs/` `tools/` などの開発用ファイルは含まれません。
+
+## 13. Chrome ウェブストア
+
+Chrome ウェブストアでの公開を準備しています。申請に必要な資料は `docs/webstore/` にあります。
+
+| 内容 | 場所 |
+| --- | --- |
+| プライバシーポリシー | [PRIVACY.md](PRIVACY.md) / <https://yantkys.github.io/lgpwmng/privacy.html> |
+| 審査用デモページ（Reviewer Demo） | <https://yantkys.github.io/lgpwmng/reviewer-demo.html> |
+| 審査用テスト手順 | [docs/webstore-review.md](docs/webstore-review.md) |
+| 単一目的（single purpose）の説明 | [docs/webstore/single-purpose.md](docs/webstore/single-purpose.md) |
+| 権限の利用理由 | [docs/webstore/permissions.md](docs/webstore/permissions.md) |
+| Privacy practices 申告案 | [docs/webstore/privacy-practices.md](docs/webstore/privacy-practices.md) |
+| リモートコードの申告 | [docs/webstore/remote-code.md](docs/webstore/remote-code.md) |
+| ストア掲載文案 | [docs/webstore/listing-ja.md](docs/webstore/listing-ja.md) |
+| 申請チェックリスト（Dashboard 上の作業） | [docs/webstore/checklist.md](docs/webstore/checklist.md) |
+
+公開用 ZIP は `npm run package`、または GitHub Actions の `webstore-package` workflow で生成します。
+
+## 14. 既知の制限
 
 利用前に知っておく必要がある制約のみを挙げます。
 

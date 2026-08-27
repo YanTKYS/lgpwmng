@@ -5,6 +5,74 @@
 Vault のデータ形式（`schemaVersion`）を変更したリリースには、その旨を明記しています。
 明記のないリリースでは形式は変わっておらず、更新にあたって移行作業は不要です。
 
+## v0.6.0 — Chrome ウェブストア公開準備
+
+Vault の `schemaVersion` は 3 のままで、v0.5.x までに保存したデータ・マスターバックアップ・
+共有用ファイルはそのまま利用できます。既存の機能（Vault・暗号化・capture・frame / iframe 対応・
+アカウント共有・popup・setup・options・URL 照合・管理者確認）の仕様は変更していません。
+Chrome ウェブストアの審査・公開・更新運用に必要な説明とパッケージングを整備し、
+公開要件への適合として「初回のデータ利用開示と明示的な同意」を追加しました。
+
+- **初回のデータ利用開示と明示的な同意を追加しました（公開要件への適合）。**
+  拡張アイコンを初めて押すと、popup に「lgpwmng のデータ利用について」が表示されます。
+  扱う情報（現在のページの URL・ログインフォームの入力欄の情報・設定時に入力済みの値。
+  ユーザーID・パスワード等を含む）と用途、端末内でのみ処理・保存し外部送信しないことを示し、
+  「同意して利用を開始」を押すまで先へ進みません。
+  - **同意するまで、現在のタブの URL を取得しません**（`chrome.tabs.query()` を呼びません）。
+    ページへのコード注入（走査・取り込み・入力・強調表示）も行いません。
+  - 画面側の制御だけに頼らず、Service Worker 側でも `SERVICE_MATCH` / `PAGE_SCAN` /
+    `PAGE_CAPTURE` / `SCAN_RESULT_GET` / `PAGE_HIGHLIGHT` / `FILL_RUN` の各要求で同意済みかを
+    確認します。`SCAN_RESULT_GET` は新たに走査するものではありませんが、過去にページから取得した
+    入力欄の構造を読み出すため対象に含めています（更新直前の走査結果が
+    `chrome.storage.session` に残ったまま、まだ同意していない状態で読み出されるのを防ぎます）。
+  - 同意の記録は `chrome.storage.local` の `privacyConsentVersion`（現在 1）と記録日時だけで、
+    認証情報は含みません。扱うデータの内容を変えた場合はバージョンを上げて再同意を求めます。
+  - 同じ内容を設定ページの「この拡張について」へ常設し、現在の同意状態も表示します。
+  - 既存の利用者は、更新後に一度だけこの画面が表示されます。登録済みのデータには影響しません。
+
+- **プライバシーポリシーを追加しました。** リポジトリ直下の `PRIVACY.md` を出典とし、
+  GitHub Pages 用の `docs/privacy.html` を `node tools/build-docs.mjs` で生成します。
+  内容がずれていないことは `npm test` で検査します。
+- **審査用デモページを追加しました。** `docs/reviewer-demo.html`（frame を使わない基本ケース）と
+  `docs/reviewer-demo-frame.html`（iframe 内フォームの追加ケース）。架空の業務システムを模した
+  ダミーのログイン画面で、実在する組織名・ドメイン・認証情報は使用していません。
+  `docs/` は GitHub Pages で公開できる構成にしました（`docs/index.html`）。
+- **Chrome ウェブストアの申告資料を `docs/webstore/` へ整理しました。**
+  single purpose、権限ごとの利用理由、Privacy practices 申告案、リモートコードの申告、
+  ストア掲載文案、スクリーンショット撮影計画、アイコン点検結果、審査コメント欄へ貼る文、
+  申請チェックリスト。審査手順は `docs/webstore-review.md` にまとめています。
+- **公開用 ZIP を生成できるようにしました。** `npm run package` で
+  `dist/lgpwmng-webstore-v0.6.0.zip` を作成します。ZIP 直下に `manifest.json` があり、
+  中身は `manifest.json` / `icons/` / `src/` だけです（`docs/` `test/` `tools/` `.github/` は
+  含みません）。生成は Node 標準ライブラリのみで行い、外部依存を追加していません。
+- **GitHub Actions（`webstore-package`）を追加しました。** `main` への push、タグ、
+  pull request で `npm test` → バージョン確認 → 公開用 ZIP 生成 → artifact 化を行います。
+- **公開準備に関する自動テスト（`test/package.test.js` / `test/consent.test.js`）を追加しました。**
+  manifest の妥当性・Manifest V3・権限が `activeTab` / `scripting` / `storage` のみで
+  `host_permissions` がないこと・`<all_urls>` の不在・CSP がリモートコードを許可しないこと・
+  外部通信 API とリモートコード参照の不在・`console` 出力の不在・公開用 ZIP の中身・
+  Privacy Policy と審査用デモの存在・バージョン整合を検査します。あわせて、popup の同意確認が
+  `chrome.tabs.query` より前にあること、ページへ触れる 5 つの要求が同意を必須にしていることも
+  検査します。
+- **manifest の `description` を見直しました。** 「自治体専用」と受け取られないよう、
+  実際の用途（業務システムのログイン入力補助）に即した説明へ変更しました（132 文字以内）。
+- **README に Chrome ウェブストア・プライバシー・審査用デモへの導線を追加しました。**
+  詳細は `docs/webstore/` へ分離し、README は肥大化させていません。
+- 権限・リモートコード・外部通信・認証情報のログ出力を総点検しました。追加の権限はなく、
+  外部通信を行うコード・リモートコードの参照・`console` 出力はいずれも存在しませんでした
+  （修正が必要な箇所はありませんでした）。
+- 申告資料をレビュー指摘に合わせて修正しました。**Small promo tile（440x280）は任意ではなく
+  必須**であるため、掲載画像の一覧・チェックリスト・素材の置き場をすべて必須へ揃え、
+  作り方の指針を追加しました。また、Developer Dashboard の Data usage 申告で
+  **Web history もチェックする**ことにしました。lgpwmng は閲覧履歴を収集しませんが、
+  対象ログイン画面の URL（オリジン + パス）を読み取り・保存・照合するため、
+  Chrome ウェブストアの「web browsing activity」の定義に該当します。申告・プライバシー
+  ポリシー・実際の挙動が食い違わないよう、`PRIVACY.md` に URL の扱いを明示する節を追加し、
+  資料間で申告内容がずれないことを `npm test` で検査するようにしました。
+  カテゴリは、公式のカテゴリ定義が password safe を例示している
+  `Privacy & Security` を第一候補に変更しました（`Workflow & Planning` も可）。
+- 自動テストを 87 件へ増やしました（`test/consent.test.js` と、同意まわりの静的検査を追加）。
+
 ## v0.5.4 — ドキュメントとバージョン表示の整理
 
 - README・リリースノートから、過去バージョンの経緯・重複した説明・機能範囲外の列挙を削除し、

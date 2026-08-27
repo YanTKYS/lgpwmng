@@ -1,0 +1,82 @@
+# Chrome ウェブストアへアップロードする公開用 ZIP を検証・生成する。
+#
+#   npm test → バージョン確認 → 公開対象だけを ZIP → artifact
+#
+# ウェブストアへの自動公開は行わない。Developer Dashboard へアップロードできる ZIP を
+# 安定して作れる状態を保つことが目的。
+name: webstore-package
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+
+      - name: Node.js を用意
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # 依存パッケージを持たない構成のため npm install は行わない。
+      - name: 自動テスト
+        run: npm test
+
+      - name: バージョンを取得
+        id: version
+        run: |
+          version="$(node -p "require('./manifest.json').version")"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "zip=lgpwmng-webstore-v${version}.zip" >> "$GITHUB_OUTPUT"
+          echo "manifest.json のバージョン: ${version}"
+
+      # タグから作る場合だけ、タグ名と manifest.json のバージョンが一致することを確認する。
+      # （manifest / README / release-note の整合は npm test が検査している）
+      - name: タグと manifest のバージョンを照合
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          manifest="${{ steps.version.outputs.version }}"
+          if [ "$tag" != "$manifest" ]; then
+            echo "::error::タグ v${tag} と manifest.json の ${manifest} が一致しません。" >&2
+            exit 1
+          fi
+          echo "タグ v${tag} と manifest.json のバージョンが一致しています。"
+
+      - name: 公開用 ZIP を生成
+        run: npm run package
+
+      - name: ZIP の内容を確認
+        run: |
+          zip="dist/${{ steps.version.outputs.zip }}"
+          test -f "$zip" || { echo "::error::${zip} が生成されていません。" >&2; exit 1; }
+          echo "--- ${zip} ---"
+          unzip -l "$zip"
+          # ZIP 直下に manifest.json があること。
+          unzip -l "$zip" | grep -qE ' manifest\.json$' \
+            || { echo "::error::ZIP 直下に manifest.json がありません。" >&2; exit 1; }
+          # 開発用ファイルが混入していないこと。
+          if unzip -Z1 "$zip" | grep -E '^(docs|test|tools|dist|node_modules|\.github|\.git)/|^(README\.md|PRIVACY\.md|release-note\.md|package\.json|package-lock\.json|\.gitignore)$'; then
+            echo "::error::公開用 ZIP に開発用ファイルが含まれています。" >&2
+            exit 1
+          fi
+          echo "ZIP の内容を確認しました。"
+
+      - name: artifact として保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: lgpwmng-webstore-package
+          path: dist/${{ steps.version.outputs.zip }}
+          if-no-files-found: error
+          retention-days: 90

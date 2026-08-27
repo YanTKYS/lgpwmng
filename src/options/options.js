@@ -18,6 +18,21 @@ const editor = createServiceEditor({
   onAccountsSaved: () => { refreshList().catch(() => {}); },
 });
 
+/**
+ * データ利用への同意状態を表示する。
+ * 同意そのものは popup で行うため、ここでは状態を示すだけにしている。
+ */
+async function showConsentState() {
+  try {
+    const consent = await request(MSG.CONSENT_STATUS);
+    $('#about-consent').textContent = consent.granted
+      ? `同意済み（開示バージョン ${consent.version}）`
+      : '未同意（拡張アイコンから同意画面を確認してください）';
+  } catch {
+    $('#about-consent').textContent = '取得できませんでした';
+  }
+}
+
 createSharePanel({
   // 共有インポートで Vault が更新されたら、一覧と編集中のサービスを読み直す。
   // 読み直さないと、開いたままの編集画面が古い accounts を持ち続け、その後の
@@ -27,6 +42,7 @@ createSharePanel({
 
 async function boot() {
   $('#about-version').textContent = `v${chrome.runtime.getManifest().version}`;
+  await showConsentState();
   const status = await request(MSG.VAULT_STATUS);
   const locked = !status.unlocked;
   $('#locked').classList.toggle('hidden', !locked);

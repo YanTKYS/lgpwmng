@@ -4,6 +4,7 @@ import { parseHttpUrl } from '../lib/url.js';
 import { $, clear, el, setStatus } from '../ui/dom.js';
 
 const views = {
+  consent: $('#view-consent'),
   init: $('#view-init'),
   unlock: $('#view-unlock'),
   main: $('#view-main'),
@@ -21,7 +22,23 @@ function showView(name) {
   for (const [key, node] of Object.entries(views)) node.classList.toggle('hidden', key !== name);
 }
 
+/**
+ * 起動時の入口。
+ *
+ * データ利用への同意より前に、現在のタブの URL を取得しない。
+ * そのため chrome.tabs.query() は同意を確認した後の start() で初めて呼ぶ。
+ */
 async function boot() {
+  const consent = await request(MSG.CONSENT_STATUS);
+  if (!consent.granted) {
+    showView('consent');
+    $('#btn-consent').focus();
+    return;
+  }
+  await start();
+}
+
+async function start() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   state.tabId = tab ? tab.id : null;
   state.url = tab && tab.url ? tab.url : '';
@@ -176,6 +193,19 @@ function clearFillResult() {
 
 // --- イベント ---------------------------------------------------------------
 
+$('#btn-consent').addEventListener('click', async () => {
+  const button = $('#btn-consent');
+  button.disabled = true;
+  try {
+    await request(MSG.CONSENT_GRANT);
+    // 同意が記録できた後に初めて、現在のタブの URL を取得する。
+    await start();
+  } catch (error) {
+    setStatus($('#consent-status'), error.message, 'error');
+    button.disabled = false;
+  }
+});
+
 $('#form-init').addEventListener('submit', async (event) => {
   event.preventDefault();
   const password = $('#init-password').value;
@@ -303,6 +333,7 @@ $('#btn-lock').addEventListener('click', async () => {
 });
 
 boot().catch((error) => {
-  showView('unlock');
-  setStatus($('#unlock-status'), error.message, 'error');
+  // 起動に失敗した場合も、同意前の状態でページへ触れないよう同意画面から始める。
+  showView('consent');
+  setStatus($('#consent-status'), error.message, 'error');
 });

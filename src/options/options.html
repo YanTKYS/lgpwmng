@@ -200,6 +200,39 @@
         <section class="block">
           <h3>この拡張について</h3>
           <p class="small muted">lgpwmng <span id="about-version"></span> / 外部通信なし・端末内のみで動作します。認証情報は AES-GCM で暗号化して保存されます。</p>
+
+          <h4>扱う情報とその用途</h4>
+          <p class="small muted">ログイン入力補助のため、次の情報を扱います。いずれも端末内でのみ処理・保存し、外部サーバーへ送信しません。</p>
+          <table class="small">
+            <thead>
+              <tr><th>扱う情報</th><th>用途</th><th>保存先</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>現在のページの URL</td>
+                <td>対象のログイン画面を判定し、入力の直前に照合する</td>
+                <td>登録した URL 条件（オリジン + パス）を暗号化 Vault へ</td>
+              </tr>
+              <tr>
+                <td>ログインフォームの入力欄の情報</td>
+                <td>入力先の入力欄を特定する</td>
+                <td>暗号化 Vault へ</td>
+              </tr>
+              <tr>
+                <td>入力済みの値・登録した値<br>（ユーザーID・パスワード等）</td>
+                <td>ログインフォームへ入力する</td>
+                <td>暗号化 Vault へ</td>
+              </tr>
+            </tbody>
+          </table>
+          <p class="small muted">
+            情報を扱うのは、利用者が拡張アイコンから操作したときだけです。ページを常時監視する
+            常駐スクリプトはなく、閲覧履歴・利用状況・テレメトリは収集しません。データの販売・
+            第三者提供・広告目的の利用も行いません。
+          </p>
+          <p class="small muted">
+            データ利用への同意: <span id="about-consent">—</span>
+          </p>
         </section>
       </section>
     </div>

@@ -1,0 +1,7 @@
+# 公開用 ZIP の出力先（npm run package / GitHub Actions で生成する）
+dist/
+
+node_modules/
+
+.DS_Store
+Thumbs.db

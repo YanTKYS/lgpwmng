@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lgpwmng ドキュメント</title>
+<style>
+  :root { color-scheme: light dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 4rem;
+    max-width: 44rem;
+    font-family: system-ui, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+    line-height: 1.8;
+    color: #1c1f23;
+    background: #fff;
+  }
+  h1 { font-size: 1.6rem; margin: 0 0 0.5rem; }
+  .lead { color: #4a525b; margin: 0 0 2rem; font-size: 0.95rem; }
+  h2 { font-size: 1.1rem; margin: 2.25rem 0 0.75rem; padding-bottom: 0.3rem; border-bottom: 1px solid #d8dde3; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { margin: 0.9rem 0; }
+  li a { font-weight: 600; }
+  li p { margin: 0.15rem 0 0; font-size: 0.88rem; color: #5a626b; }
+  a { color: #0b5cab; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #d8dde3; font-size: 0.85rem; color: #5a626b; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e6e9ee; background: #14171a; }
+    h2, footer { border-color: #333a42; }
+    .lead, li p, footer { color: #9aa4af; }
+    a { color: #74b3f0; }
+  }
+</style>
+</head>
+<body>
+<h1>lgpwmng ドキュメント</h1>
+<p class="lead">
+  業務システムのログインフォームへ、利用者が端末内に登録した認証情報を入力するための
+  Chrome 拡張機能です。外部サーバーへの送信は行いません。
+</p>
+
+<h2>プライバシー</h2>
+<ul>
+  <li>
+    <a href="./privacy.html">プライバシーポリシー</a>
+    <p>取り扱う情報、利用目的、保存場所、暗号化、外部送信を行わないことの説明。Chrome ウェブストアの Privacy Policy URL に指定するページです。</p>
+  </li>
+</ul>
+
+<h2>審査用デモ</h2>
+<ul>
+  <li>
+    <a href="./reviewer-demo.html">Reviewer Demo（標準版）</a>
+    <p>架空の業務システムを模したサンプルログイン画面。自治体コード / ユーザーID / パスワードの 3 項目。frame / iframe を使わない基本ケースです。</p>
+  </li>
+  <li>
+    <a href="./reviewer-demo-frame.html">Reviewer Demo（iframe 版）</a>
+    <p>ログインフォームを iframe に埋め込んだ追加ケース。frame / iframe 対応の確認用です。</p>
+  </li>
+</ul>
+
+<h2>リポジトリ内のドキュメント</h2>
+<ul>
+  <li>
+    <a href="https://github.com/YanTKYS/lgpwmng#readme">README</a>
+    <p>機能・使い方・設計方針。</p>
+  </li>
+  <li>
+    <a href="https://github.com/YanTKYS/lgpwmng/blob/main/docs/webstore-review.md">審査用テスト手順</a>
+    <p>Chrome ウェブストア審査担当者向けの確認手順。</p>
+  </li>
+  <li>
+    <a href="https://github.com/YanTKYS/lgpwmng/tree/main/docs/webstore">Chrome ウェブストア申告資料</a>
+    <p>single purpose、permissions の利用理由、privacy practices 申告案、掲載文案、チェックリスト。</p>
+  </li>
+</ul>
+
+<footer>
+  <p>
+    このサイトは GitHub Pages で公開しているドキュメントと審査用デモだけを提供します。
+    拡張機能本体はこのサイトに依存せず、外部への通信を行いません。
+  </p>
+  <p><a href="https://github.com/YanTKYS/lgpwmng">GitHub リポジトリ</a></p>
+</footer>
+</body>
+</html>

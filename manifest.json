@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "lgpwmng",
-  "version": "0.5.4",
-  "description": "自治体業務システム向けのログイン情報入力補助（閉域環境対応・外部通信なし）",
+  "version": "0.6.0",
+  "description": "業務システムのログイン入力補助。任意の入力項目と複数アカウントに対応。認証情報は端末内に暗号化して保存し、外部通信は行いません。",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "storage"],
   "action": {

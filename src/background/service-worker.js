@@ -17,6 +17,7 @@ import {
   frameDescriptorMatchesProbe,
   normalizeFrameDescriptor,
 } from '../lib/frame.js';
+import { getConsent, grantConsent, requireConsent } from './consent.js';
 import { pageAgent } from './page-agent.js';
 import {
   changeMasterPassword,
@@ -63,6 +64,12 @@ function toMessage(error) {
 async function handle(message) {
   const payload = (message && message.payload) || {};
   switch (message && message.type) {
+    case MSG.CONSENT_STATUS:
+      return getConsent();
+
+    case MSG.CONSENT_GRANT:
+      return grantConsent();
+
     case MSG.VAULT_STATUS:
       return { initialized: await isInitialized(), unlocked: await isUnlocked() };
 
@@ -121,25 +128,36 @@ async function handle(message) {
       return { deleted: true };
     }
 
+    // ここから下はページへ触れる処理。UI 側の制御だけに頼らず、
+    // background でも同意済みかを確認する。
     case MSG.SERVICE_MATCH:
+      await requireConsent();
       return matchForPage(payload);
 
     case MSG.PAGE_SCAN:
+      await requireConsent();
       return scanPage(payload.tabId);
 
     case MSG.PAGE_CAPTURE:
+      await requireConsent();
       return capturePage(payload.tabId);
 
     case MSG.SCAN_RESULT_GET: {
+      // 新たに走査するわけではないが、SCAN_KEY には過去にページから取得した
+      // 入力欄の構造が入っている。更新直後にまだ同意していない場合へ備えて、
+      // 読み出しにも同意を求める。
+      await requireConsent();
       const stored = (await chrome.storage.session.get(SCAN_KEY))[SCAN_KEY];
       // 別のタブを走査した結果を渡さない（設定ページが誤った入力欄を表示するため）。
       return stored && stored.tabId === payload.tabId ? stored : null;
     }
 
     case MSG.PAGE_HIGHLIGHT:
+      await requireConsent();
       return runHighlight(payload);
 
     case MSG.FILL_RUN:
+      await requireConsent();
       return runFill(payload);
 
     default:

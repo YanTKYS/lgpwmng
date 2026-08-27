@@ -4,6 +4,9 @@
  */
 
 export const MSG = {
+  CONSENT_STATUS: 'consent/status',
+  CONSENT_GRANT: 'consent/grant',
+
   VAULT_STATUS: 'vault/status',
   VAULT_CREATE: 'vault/create',
   VAULT_UNLOCK: 'vault/unlock',
