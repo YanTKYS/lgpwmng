@@ -87,12 +87,21 @@
 </tbody></table>
 <h3>扱わない情報</h3>
 <ul>
-<li>閲覧履歴、タブの一覧、ブックマーク</li>
+<li><strong>閲覧履歴</strong>（利用者が訪れたページの記録）、タブの一覧、ブックマーク</li>
 <li>Cookie、セッショントークン、ページ本文</li>
 <li>利用者の氏名・メールアドレス・アカウント登録情報（lgpwmng には利用者登録がありません）</li>
 <li>利用状況・操作ログ・クラッシュレポートなどのテレメトリ</li>
 </ul>
 <p>ページの走査は「このログイン画面を設定」を実行したときだけ行い、対象は入力欄 （<code>input</code> / <code>select</code> / <code>textarea</code>）の構造と、そのときの入力値に限られます。ページ本文・ リンク・画像などは取得しません。常駐する content script はなく、ページを継続的に監視しません。</p>
+<h3>URL の扱いについて</h3>
+<p>lgpwmng は閲覧履歴を収集しませんが、<strong>URL は扱います</strong>。具体的には次の 3 つだけです。</p>
+<ol>
+<li>利用者が拡張アイコンを操作した時点の、現在のタブ／フレームの URL を読み取る</li>
+<li>利用者が登録したログイン画面の URL 条件（オリジン + パス）を、暗号化 Vault に保存する</li>
+<li>入力の直前に、現在の URL がその条件に一致するかを照合する（<strong>誤ったサイトへ認証情報を 入力しないための安全機構です</strong>）</li>
+</ol>
+<p>利用者が拡張を操作していない間、lgpwmng は URL を読み取りません。閲覧したページを記録したり、 一覧を作ったりすることもありません。読み取った URL が端末外へ出ることもありません。</p>
+<p>Chrome ウェブストアはこうした URL の取り扱いを「web browsing activity（ブラウザがやり取りする ドメインや URL を含む、利用者が要求・操作する Web リソースに関する情報）」として分類するため、 Developer Dashboard の申告では <strong>Web history</strong> にも該当するものとして届け出ています。 これは閲覧履歴を収集しているという意味ではなく、上記 3 つの用途で URL を扱っているという申告です。</p>
 <h2>3. 利用目的</h2>
 <p>取り扱う情報は、次の目的のためだけに利用します。</p>
 <ol>
@@ -168,6 +177,7 @@
 <tr><td><code>storage</code></td><td>暗号化された Vault・設定・セッション状態を端末内に保存するため</td></tr>
 </tbody></table>
 <p>ページへのアクセスは、利用者が拡張アイコンを押した時点に限られます。バックグラウンドで ページを走査したり、閲覧中のサイトを記録したりすることはありません。</p>
+<p>Chrome ウェブストアの Developer Dashboard では、扱うデータの種類として <strong>Personally identifiable information / Authentication information / Website content / Web history</strong> を申告しています。いずれも端末内で扱うだけで、外部へ送信することはありません （分類の理由は「2. 取り扱う情報」および <a href="https://github.com/YanTKYS/lgpwmng/blob/main/docs/webstore/privacy-practices.md">docs/webstore/privacy-practices.md</a> を参照してください）。</p>
 <p>詳細は <a href="https://github.com/YanTKYS/lgpwmng/blob/main/docs/webstore/permissions.md">docs/webstore/permissions.md</a> を参照してください。</p>
 <h2>10. 子どものプライバシー</h2>
 <p>lgpwmng は業務システムのログイン補助を目的とした業務用ツールであり、子どもを対象としていません。 年齢に関する情報を含め、利用者に関する情報を収集しません。</p>

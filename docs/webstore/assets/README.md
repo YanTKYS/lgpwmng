@@ -7,12 +7,15 @@ Developer Dashboard の Store listing へアップロードする画像を置く
 
 | ファイル | サイズ | 要否 | 内容 |
 | --- | --- | --- | --- |
-| `screenshot-1-popup.png` | 1280x800 | 必須（最低 1 枚） | popup でサービス／アカウントを選択する画面 |
+| `screenshot-1-popup.png` | 1280x800 | **必須**（最低 1 枚） | popup でサービス／アカウントを選択する画面 |
 | `screenshot-2-setup.png` | 1280x800 | 推奨 | ログイン画面設定画面（入力項目の登録） |
 | `screenshot-3-options.png` | 1280x800 | 推奨 | options のサービス／アカウント管理 |
 | `screenshot-4-share.png` | 1280x800 | 推奨 | アカウント共有（共有用ファイルの作成） |
-| `small-promo-440x280.png` | 440x280 | 任意 | Small promo tile |
+| `small-promo-440x280.png` | 440x280 | **必須** | Small promo tile。作り方は [../screenshots.md](../screenshots.md) |
 | `marquee-1400x560.png` | 1400x560 | 任意 | Marquee promo tile |
+
+Small promo tile（440x280）は Chrome ウェブストアの必須画像です。任意なのは
+Marquee promo tile（1400x560）だけです。
 
 Store icon は別途用意する必要はありません。拡張パッケージ内の `icons/icon128.png` が
 そのまま使われます（[icons.md](../icons.md) を参照）。

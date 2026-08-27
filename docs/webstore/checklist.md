@@ -64,9 +64,15 @@ Privacy Policy URL と Reviewer Demo URL は、審査までに実際にアクセ
 
 ## E. 掲載画像の用意
 
+Chrome ウェブストアの**必須画像**は、128x128 の store icon（ZIP 内の `icons/icon128.png` が
+使われるため用意済み）、最低 1 枚のスクリーンショット、**440x280 の small promo tile** の 3 つです。
+Marquee promo tile（1400x560）だけが任意です。
+
 - [ ] [screenshots.md](screenshots.md) の手順でスクリーンショットを 4 枚撮影する
+- [ ] **Small promo tile（440x280、必須）を作成する**（作り方は [screenshots.md](screenshots.md)）
 - [ ] 実在の認証情報・組織名・業務システム名・内部 URL が写っていないことを確認する
-- [ ] 1280x800 px（または 640x400 px）ちょうどであることを確認する
+- [ ] スクリーンショットが 1280x800 px（または 640x400 px）ちょうどであることを確認する
+- [ ] Small promo tile が 440x280 px ちょうどで、半分のサイズに縮めても読めることを確認する
 - [ ] `docs/webstore/assets/` へ保存する（任意。アップロードは Dashboard から行う）
 
 ## F. Developer Dashboard での作業
@@ -85,9 +91,12 @@ Privacy Policy URL と Reviewer Demo URL は、審査までに実際にアクセ
 - [ ] Name: `lgpwmng`
 - [ ] Short description（132 文字以内）を貼り付ける
 - [ ] Detailed description を貼り付ける
-- [ ] Category: **Workflow & Planning**（Productivity）
-- [ ] Screenshots を 1〜5 枚アップロードする（最低 1 枚必須）
-- [ ] Small promo tile（440x280）をアップロードする（任意）
+- [ ] Category: **Privacy & Security**（公式のカテゴリ定義が password safe を例示しているため）。
+      入力作業の効率化を前面に出す場合は `Workflow & Planning` でも可
+      （[listing-ja.md](listing-ja.md) を参照）
+- [ ] Screenshots を 1〜5 枚アップロードする（**最低 1 枚必須**）
+- [ ] **Small promo tile（440x280）をアップロードする（必須）**
+- [ ] Marquee promo tile（1400x560）をアップロードする（任意）
 - [ ] Homepage URL: `https://github.com/YanTKYS/lgpwmng`
 - [ ] Support URL: `https://github.com/YanTKYS/lgpwmng/issues`
 - [ ] Store icon は ZIP 内の `icons/icon128.png` が使われることを確認する
@@ -103,12 +112,16 @@ Privacy Policy URL と Reviewer Demo URL は、審査までに実際にアクセ
       - [ ] `storage`
 - [ ] **Are you using remote code?** で **`No, I am not using remote code`** を選ぶ
       （根拠: [remote-code.md](remote-code.md)）
-- [ ] **Data usage** で次の 3 つにチェックを入れる
+- [ ] **Data usage** で次の 4 つにチェックを入れる
       - [ ] Personally identifiable information
       - [ ] Authentication information
       - [ ] Website content
-      （Health / Financial / Personal communications / Location / Web history / User activity は
-      チェックしない）
+      - [ ] Web history
+      （Health / Financial and payment information / Personal communications / Location /
+      User activity はチェックしない）
+      Web history をチェックするのは、Chrome の閲覧履歴を取得しているという意味ではなく、
+      対象ログイン画面の URL（origin + pathname）を扱うためです。理由は
+      [privacy-practices.md](privacy-practices.md) を参照してください
 - [ ] **Certifications** の 3 つすべてにチェックを入れる
       - [ ] 第三者へのデータ販売・転送を行わない
       - [ ] 単一目的と無関係な用途にデータを使用・転送しない

@@ -297,6 +297,63 @@ test('docs/privacy.html は PRIVACY.md から生成した内容と一致する',
   );
 });
 
+test('申告するデータ種別が申告案・チェックリスト・Privacy Policy で一致する', () => {
+  // 申告・Privacy Policy・実際の挙動が食い違うとポリシー違反になり得るため、
+  // 資料側の記載がずれないようにしておく。
+  const declared = [
+    'Personally identifiable information',
+    'Authentication information',
+    'Website content',
+    'Web history',
+  ];
+  const practices = read('docs/webstore/privacy-practices.md');
+  const checklist = read('docs/webstore/checklist.md');
+  const policy = read('PRIVACY.md');
+
+  for (const type of declared) {
+    assert.ok(practices.includes(type), `privacy-practices.md に ${type} の記載がありません`);
+    assert.ok(checklist.includes(type), `checklist.md に ${type} の記載がありません`);
+    assert.ok(policy.includes(type), `PRIVACY.md に ${type} の記載がありません`);
+  }
+  // チェックしない種別を誤って申告対象へ入れていないこと。
+  for (const type of ['Health information', 'Personal communications', 'Location', 'User activity']) {
+    assert.match(
+      practices,
+      new RegExp(`\\| ${type} \\| しない \\|`),
+      `privacy-practices.md で ${type} が「しない」になっていません`,
+    );
+  }
+  // URL を扱うことが Privacy Policy 側にも書かれていること。
+  assert.ok(policy.includes('web browsing activity'), 'PRIVACY.md に URL の分類の説明がありません');
+});
+
+test('必須の掲載画像が資料全体で必須として書かれている', () => {
+  // Chrome ウェブストアの必須画像は 128x128 アイコン / スクリーンショット 1 枚以上 /
+  // 440x280 の small promo tile。任意なのは 1400x560 の marquee のみ。
+  for (const path of [
+    'docs/webstore/screenshots.md',
+    'docs/webstore/listing-ja.md',
+    'docs/webstore/checklist.md',
+    'docs/webstore/assets/README.md',
+  ]) {
+    const lines = read(path).split('\n').filter((line) => line.includes('440x280'));
+    assert.ok(lines.length > 0, `${path} に small promo tile の記載がありません`);
+    assert.ok(
+      lines.some((line) => line.includes('必須')),
+      `${path} が small promo tile を必須として書いていません`,
+    );
+    for (const line of lines) {
+      assert.ok(
+        !line.includes('任意') || line.includes('必須'),
+        `${path} が small promo tile を任意として扱っています（必須です）: ${line.trim()}`,
+      );
+    }
+  }
+  // 任意なのは marquee だけであることも確認する。
+  const screenshots = read('docs/webstore/screenshots.md');
+  assert.match(screenshots, /1400x560[^\n]*任意|Marquee[^\n]*任意/, 'marquee は任意と書く');
+});
+
 test('Privacy Policy に外部送信しない旨と保存方法が明記されている', () => {
   const policy = read('PRIVACY.md');
   for (const phrase of [

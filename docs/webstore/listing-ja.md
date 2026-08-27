@@ -33,12 +33,19 @@ Short description が併記されるため、名前を長くする必要がな�
 ## Category（カテゴリ）
 
 ```text
-Productivity → Workflow & Planning
+Make Chrome yours → Privacy & Security
 ```
 
-入力作業を補助する業務向けツールであるため Workflow & Planning を第一候補とします。
-`Make Chrome yours → Privacy & Security` も選択肢になりますが、拡張の主機能は
-プライバシー保護そのものではなく入力補助であるため、Workflow & Planning を推奨します。
+公式ドキュメントのカテゴリ定義が
+「Privacy & Security: Extensions such as VPNs, **password safes**, and phishing deterrence.」と
+password safe を明示しているため、こちらを第一候補とします。
+
+代替として `Productivity → Workflow & Planning`
+（「Extensions to help users perform their tasks more efficiently」）も妥当です。
+入力作業の効率化という側面を前面に出す場合はこちらを選びます。
+
+いずれを選んでも審査基準は変わりません。申請時にどちらを前面に出すかで決めてください
+（カテゴリは Dashboard 上でいつでも変更できます）。
 
 ## Language（言語）
 
@@ -158,10 +165,13 @@ https://github.com/YanTKYS/lgpwmng/issues
 
 | 種別 | サイズ | 要否 |
 | --- | --- | --- |
-| Store icon | 128x128 px | 必須（`icons/icon128.png` を使用） |
-| Screenshot | 1280x800 px（または 640x400 px） | 最低 1 枚、最大 5 枚。4 枚を予定 |
-| Small promo tile | 440x280 px | 任意（ストアでの掲載枠に使われる） |
+| Store icon | 128x128 px | **必須**（`icons/icon128.png` を使用。別途アップロード不要） |
+| Screenshot | 1280x800 px（または 640x400 px） | **必須**（最低 1 枚、最大 5 枚。4 枚を予定） |
+| Small promo tile | 440x280 px | **必須** |
 | Marquee promo tile | 1400x560 px | 任意 |
+| YouTube 動画 | — | 任意（公式ドキュメントは Graphic assets の列挙に含めている） |
+
+Small promo tile（440x280）は任意ではなく**必須**です。任意なのは Marquee promo tile だけです。
 
 ## 使用しない表現
 

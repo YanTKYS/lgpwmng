@@ -7,12 +7,19 @@ Chrome ウェブストア Developer Dashboard → **Store listing** → Graphic 
 
 | 種別 | サイズ | 形式 | 要否 |
 | --- | --- | --- | --- |
-| Screenshot | **1280x800 px**（または 640x400 px） | PNG / JPEG | 最低 1 枚、最大 5 枚 |
-| Store icon | 128x128 px | PNG | 必須（パッケージ内の `icons/icon128.png` が使われる） |
-| Small promo tile | 440x280 px | PNG / JPEG | 任意 |
+| Store icon | 128x128 px | PNG | **必須**（パッケージ内の `icons/icon128.png` が使われる） |
+| Screenshot | **1280x800 px**（または 640x400 px） | PNG / JPEG | **必須**（最低 1 枚、最大 5 枚） |
+| Small promo tile | 440x280 px | PNG / JPEG | **必須** |
 | Marquee promo tile | 1400x560 px | PNG / JPEG | 任意 |
+| YouTube 動画 | — | URL | 任意（公式ドキュメントは Graphic assets の列挙に含めている） |
 
-- 1280x800 を推奨します（高解像度ディスプレイで見栄えがよく、表示時は 640x400 へ縮小されます）。
+Small promo tile（440x280）は**必須**です。公式ドキュメントは
+「You must provide one small, 440x280-pixel promotional image」「Small: 440x280 pixels (required)」と
+明記しており、これが無いアイテムは、ストア上で small promo tile があるアイテムより後ろに表示されます。
+任意なのは Marquee promo tile（1400x560）だけです。
+
+- スクリーンショットは 1280x800 を推奨します（高解像度ディスプレイで見栄えがよく、表示時は
+  640x400 へ縮小されます）。
 - 文字が多い画面を撮る場合、縮小後に読めるかを確認してください。読みにくい場合は
   640x400 で撮り直します。
 - 縦横比が合わない画像はアップロードできません。撮影後にキャンバスサイズを 1280x800 へ
@@ -86,16 +93,32 @@ Chrome ウェブストア Developer Dashboard → **Store listing** → Graphic 
 
 ```text
 docs/webstore/assets/
-  screenshot-1-popup.png
+  screenshot-1-popup.png     （必須。最低 1 枚）
   screenshot-2-setup.png
   screenshot-3-options.png
   screenshot-4-share.png
-  small-promo-440x280.png   （任意）
-  marquee-1400x560.png      （任意）
+  small-promo-440x280.png    （必須）
+  marquee-1400x560.png       （任意）
 ```
 
 画像は撮影者が追加してください。リポジトリには、撮影前の時点では
 [assets/README.md](assets/README.md) だけが置かれています。
+
+## Small promo tile（440x280、必須）の作り方
+
+スクリーンショットとは目的が異なります。画面をそのまま貼るのではなく、拡張が何をするものかを
+一目で伝える画像にします。
+
+- **スクリーンショットの流用は避けます。** 縮小すると読めなくなります。
+- **文字は最小限にします。** 半分のサイズに縮めても成立するかを確認してください
+  （プロモ画像はロケール別に差し替えられないため、文字が多いと多言語で不利になります）。
+- 案: 濃紺（`#1a4f8a` 前後）の背景に、`icons/icon128.png` と同じ南京錠の意匠を大きく配置し、
+  右側に「lgpwmng」と短い一言（例:「業務システムのログイン入力補助」）を添える。
+- 余白を十分に取り、縁取り・強い影は付けません（UI 側で枠が付くことがあります）。
+- 実在の組織名・システム名・認証情報は入れません。
+- Google のブランド要素（Chrome ロゴ等）は使いません。
+
+Marquee promo tile（1400x560）は任意です。より目立つ掲載枠を狙う場合にのみ用意します。
 
 ## 撮影後の確認
 
@@ -105,3 +128,5 @@ docs/webstore/assets/
 - [ ] 1280x800 px ちょうど（または 640x400 px ちょうど）である
 - [ ] 640x400 へ縮小しても文字が読める
 - [ ] 4 枚が同じ縮尺・同じ背景で統一されている
+- [ ] Small promo tile（440x280、**必須**）を用意した
+- [ ] Small promo tile が半分のサイズに縮めても読める
