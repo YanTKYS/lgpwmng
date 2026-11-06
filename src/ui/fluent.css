@@ -1,0 +1,252 @@
+/*
+ * 設定画面（options）とログイン画面設定（setup）向けの見た目の規則。
+ * Microsoft Fluent 2 の考え方（余白・文字サイズ・罫線・フォーカスの統一、
+ * 主操作と破壊的操作の区別、色だけに頼らない状態表現）を部分的に取り入れている。
+ *
+ * ui.css は popup からも読み込まれるため、ここでの変更はすべて body.fluent の
+ * 内側に限定している。popup の見た目・幅は変えない。
+ * 外部ライブラリ・外部フォント・画像は使わない。
+ */
+
+body.fluent {
+  --bg-hover: #ededed;
+  --bg-selected: #e8f0fb;
+  --accent-hover: #1555a8;
+  --accent-pressed: #104587;
+  --border-strong: #8a8f95;
+  --danger-bg: #fdecea;
+  --ctl-h: 32px;
+  --radius: 4px;
+  --radius-lg: 8px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-dialog: 0 8px 32px rgba(0, 0, 0, 0.28);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  body.fluent {
+    --bg-hover: #35383c;
+    --bg-selected: #25354d;
+    --accent-hover: #8dbaff;
+    --accent-pressed: #a8cbff;
+    --border-strong: #8a8f95;
+    --danger-bg: #442523;
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-dialog: 0 8px 32px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* --- 文字 ------------------------------------------------------------------ */
+
+.fluent h1 { font-size: 16px; }
+.fluent h2 { font-size: 18px; line-height: 1.35; overflow-wrap: anywhere; }
+.fluent h3 { font-size: 14px; }
+.fluent h4 { margin: 8px 0 0; font-size: 13px; font-weight: 600; }
+.fluent .small { font-size: 12px; }
+
+.fluent .field-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 4px;
+}
+
+/* --- 入力欄 ---------------------------------------------------------------- */
+
+.fluent input[type="text"],
+.fluent input[type="password"],
+.fluent input[type="search"],
+.fluent select {
+  min-height: var(--ctl-h);
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-bottom-color: var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.fluent input:hover:not(:disabled):not(:focus),
+.fluent select:hover:not(:disabled):not(:focus) {
+  border-color: var(--border-strong);
+}
+
+/* フォーカス中は下辺を太くアクセント色にする（Fluent 2 の入力欄）。
+   outline も残し、強制カラー表示でも見えるようにする。 */
+.fluent input:focus:not([type="file"]):not([type="checkbox"]),
+.fluent select:focus {
+  outline: 1px solid transparent;
+  border-color: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.fluent input[aria-invalid="true"] {
+  border-color: var(--danger);
+  box-shadow: inset 0 -2px 0 var(--danger);
+}
+
+.fluent input[type="file"] {
+  max-width: 100%;
+  font: inherit;
+}
+
+.fluent input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* --- ボタン ---------------------------------------------------------------- */
+
+.fluent button {
+  min-height: var(--ctl-h);
+  padding: 4px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.fluent button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+}
+
+.fluent button:active:not(:disabled) {
+  background: var(--border);
+}
+
+.fluent button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+.fluent button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.fluent button.primary:active:not(:disabled) {
+  background: var(--accent-pressed);
+  border-color: var(--accent-pressed);
+}
+
+/* 破壊的操作: 主操作と並べても取り違えないよう、枠と文字を危険色にして塗りは付けない。 */
+.fluent button.danger {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: var(--bg);
+}
+
+.fluent button.danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+/* 表内などの控えめな文字ボタン（既存の .link）。寸法は小さいまま。 */
+.fluent button.link {
+  min-height: 0;
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  font-weight: 400;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.fluent button.link:hover:not(:disabled) {
+  background: none;
+  color: var(--accent-hover);
+}
+
+.fluent button.link.danger {
+  color: var(--danger);
+  border: none;
+  background: none;
+}
+
+.fluent button.link.danger:hover:not(:disabled) {
+  background: none;
+  text-decoration-thickness: 2px;
+}
+
+/* キーボード操作時のフォーカス表示（ボタン・リンク・要約行など）。 */
+.fluent button:focus-visible,
+.fluent input[type="file"]:focus-visible,
+.fluent input[type="checkbox"]:focus-visible,
+.fluent summary:focus-visible,
+.fluent a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.fluent button.danger:focus-visible {
+  outline-color: var(--danger);
+}
+
+/* --- 状態表示 ---------------------------------------------------------------
+   成功・失敗は色だけでなく、先頭の記号でも判別できるようにする。 */
+
+.fluent .status {
+  font-size: 12px;
+  min-height: 18px;
+}
+
+.fluent .status.ok::before { content: "✓ "; font-weight: 700; }
+.fluent .status.error::before { content: "⚠ "; font-weight: 700; }
+
+.fluent .notice {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border-left-width: 4px;
+}
+
+.fluent .notice.warn::before {
+  content: "⚠ ";
+  font-weight: 700;
+}
+
+/* --- バッジ・アカウントカード ------------------------------------------------- */
+
+.fluent .badge {
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.fluent .badge.admin {
+  font-weight: 600;
+  border-color: var(--warn-border);
+}
+
+.fluent .account-card {
+  padding: 12px;
+  gap: 12px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* 管理者アカウントは地色・枠に加え、左の太線と「管理者」の文字バッジでも示す。 */
+.fluent .account-card.admin {
+  border-left: 4px solid var(--warn-border);
+}
+
+.fluent .account-head {
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.fluent .account-head .name-field { flex: 1 1 200px; min-width: 0; }
+.fluent .account-head .role-field { flex: none; width: 220px; }
+.fluent .account-head .role-field .role-control { display: flex; align-items: center; gap: 8px; }
+.fluent .account-head .name { max-width: none; }
+.fluent .account-head select { width: 120px; }
+
+.fluent .secret-row button { padding: 4px 10px; white-space: nowrap; }
+
+.fluent table { font-size: 13px; }
+.fluent th, .fluent td { padding: 6px 8px; }

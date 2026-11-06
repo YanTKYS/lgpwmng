@@ -99,21 +99,34 @@ export function renderAccountCards(container, accounts, accountFields, { onRemov
     return;
   }
   for (const account of accounts) {
-    const card = el('div', { className: `account-card${account.role === ACCOUNT_ROLE.ADMIN ? ' admin' : ''}` });
+    const isAdmin = account.role === ACCOUNT_ROLE.ADMIN;
+    const card = el('div', { className: `account-card${isAdmin ? ' admin' : ''}` });
     const nameInput = textInput(account.name, (value) => { account.name = value; }, { placeholder: 'アカウント名' }, onChange);
     nameInput.classList.add('name');
+    // 管理者区分は地色・枠線だけに頼らず、文字のバッジでも示す。
+    const roleBadge = el('span', { className: `badge admin role-badge${isAdmin ? '' : ' hidden'}`, text: '管理者' });
     const head = el('div', { className: 'row account-head' }, [
-      nameInput,
-      select(ROLE_LABELS, account.role, (value) => {
-        account.role = value;
-        card.classList.toggle('admin', value === ACCOUNT_ROLE.ADMIN);
-        if (onChange) onChange();
-      }),
+      el('div', { className: 'name-field' }, [
+        el('div', { className: 'field-label', text: 'アカウント名' }),
+        nameInput,
+      ]),
+      el('div', { className: 'role-field' }, [
+        el('div', { className: 'field-label', text: '区分' }),
+        el('div', { className: 'role-control' }, [
+          select(ROLE_LABELS, account.role, (value) => {
+            account.role = value;
+            card.classList.toggle('admin', value === ACCOUNT_ROLE.ADMIN);
+            roleBadge.classList.toggle('hidden', value !== ACCOUNT_ROLE.ADMIN);
+            if (onChange) onChange();
+          }),
+          roleBadge,
+        ]),
+      ]),
       el('span', { className: 'spacer' }),
       el('button', {
         className: 'link danger',
         text: '削除',
-        attrs: { type: 'button' },
+        attrs: { type: 'button', 'aria-label': `アカウント「${account.name || '(名称未設定)'}」を削除` },
         on: {
           click: () => {
             const confirmed = confirm(`アカウント「${account.name || '(名称未設定)'}」を削除しますか？`);

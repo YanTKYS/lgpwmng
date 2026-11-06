@@ -4,12 +4,13 @@
   <meta charset="utf-8">
   <title>lgpwmng 設定</title>
   <link rel="stylesheet" href="../ui/ui.css">
+  <link rel="stylesheet" href="../ui/fluent.css">
   <link rel="stylesheet" href="options.css">
 </head>
-<body>
+<body class="fluent options-page">
   <header class="app-header">
     <h1>lgpwmng</h1>
-    <nav class="tabs">
+    <nav class="tabs" aria-label="設定の種類">
       <button type="button" class="tab-button" data-tab="services" aria-selected="true">サービス</button>
       <button type="button" class="tab-button" data-tab="general" aria-selected="false">マスターパスワード / バックアップ</button>
     </nav>
@@ -19,10 +20,10 @@
 
   <section id="locked" class="locked-panel hidden">
     <form id="form-unlock" class="row">
-      <input type="password" id="unlock-password" placeholder="マスターパスワード" autocomplete="current-password">
+      <input type="password" id="unlock-password" placeholder="マスターパスワード" aria-label="マスターパスワード" autocomplete="current-password">
       <button type="submit" class="primary">アンロック</button>
     </form>
-    <div id="unlock-status" class="status"></div>
+    <div id="unlock-status" class="status" role="status"></div>
     <div id="init-hint" class="small muted hidden">マスターパスワードが未設定です。拡張アイコンから初期設定を行ってください。</div>
   </section>
 
@@ -30,43 +31,56 @@
     <!-- サービスタブ -->
     <div class="tab-panel" data-panel="services">
       <aside class="sidebar">
-        <div class="row sidebar-head">
-          <input type="search" id="service-filter" placeholder="絞り込み">
-          <button type="button" id="btn-new-service">新規</button>
+        <div class="row sidebar-title">
+          <h2>サービス一覧</h2>
+          <span id="service-count" class="badge"></span>
+          <span class="spacer"></span>
+          <button type="button" id="btn-new-service" class="primary">＋ 新規</button>
         </div>
+        <input type="search" id="service-filter" placeholder="サービス名・URLで絞り込み" aria-label="サービスを絞り込み">
         <ul id="service-list" class="service-list"></ul>
       </aside>
       <section id="editor" class="editor">
         <p id="editor-empty" class="muted">左の一覧からサービスを選択してください。</p>
         <div id="editor-body" class="hidden stack">
-          <div class="row editor-head">
-            <h2 id="editor-title">サービス</h2>
-            <span class="spacer"></span>
-            <button type="button" id="btn-save-service" class="primary">サービス設定を保存</button>
-            <button type="button" id="btn-delete-service" class="danger">サービス削除</button>
+          <div class="editor-head">
+            <div class="row editor-title-row">
+              <h2 id="editor-title">サービス</h2>
+              <span id="service-dirty" class="badge unsaved hidden"></span>
+            </div>
+            <div class="row editor-actions">
+              <button type="button" id="btn-save-service" class="primary">サービス設定を保存</button>
+              <div id="editor-status" class="status" role="status" aria-live="polite"></div>
+              <span class="spacer"></span>
+              <button type="button" id="btn-delete-service" class="danger">サービスを削除</button>
+            </div>
           </div>
-          <div id="editor-status" class="status"></div>
+          <p id="save-policy" class="small muted save-policy">
+            <strong>アカウント</strong>の変更は自動で保存されます。
+            <strong>サービス名・サービス設定</strong>（対象URL・入力項目・共通値）は「サービス設定を保存」を押したときだけ保存されます。
+          </p>
 
           <section class="block">
-            <div class="field-label">サービス名</div>
+            <label class="field-label" for="svc-name">サービス名</label>
             <input type="text" id="svc-name">
           </section>
 
           <section class="block">
             <div class="row block-head">
               <h3>アカウント</h3>
-              <span id="account-save-status" class="status muted"></span>
+              <span id="account-save-status" class="status muted" role="status" aria-live="polite"></span>
               <span class="spacer"></span>
               <button type="button" id="btn-add-account">＋ アカウントを追加</button>
             </div>
+            <p id="account-autosave-note" class="small muted"></p>
             <div id="account-list" class="stack"></div>
           </section>
 
           <details class="block service-settings">
-            <summary>サービス設定</summary>
+            <summary>サービス設定<span class="summary-hint small muted">対象URL・入力項目・共通値（変更後は「サービス設定を保存」が必要）</span></summary>
             <div class="stack service-settings-body">
               <section>
-                <div class="field-label">メモ</div>
+                <label class="field-label" for="svc-note">メモ</label>
                 <input type="text" id="svc-note">
               </section>
 
@@ -76,43 +90,51 @@
                   <span class="spacer"></span>
                   <button type="button" id="btn-add-rule">条件を追加</button>
                 </div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>オリジン（プロトコル + ホスト名 + ポート）</th>
-                      <th class="col-mode">判定</th>
-                      <th>パス</th>
-                      <th class="col-mode">判定</th>
-                      <th class="col-action"></th>
-                    </tr>
-                  </thead>
-                  <tbody id="rule-rows"></tbody>
-                </table>
+                <p class="small muted">このサービスとして扱うページの条件です。入力の直前に、現在のページがこの条件に一致するかを確認します。</p>
+                <div class="table-wrap">
+                  <table class="rule-table">
+                    <thead>
+                      <tr>
+                        <th>オリジン（プロトコル + ホスト名 + ポート）</th>
+                        <th class="col-mode">オリジンの判定</th>
+                        <th>パス</th>
+                        <th class="col-mode">パスの判定</th>
+                        <th class="col-action"><span class="visually-hidden">操作</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="rule-rows"></tbody>
+                  </table>
+                </div>
               </section>
 
               <section>
                 <div class="row block-head">
                   <h3>入力項目</h3>
-                  <span class="spacer"></span>
-                  <span class="small muted">対象入力欄はログイン画面から設定するのが確実です。</span>
                 </div>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>表示名</th>
-                      <th class="col-mode">区分</th>
-                      <th class="col-mode">種別</th>
-                      <th>対象入力欄の識別情報</th>
-                      <th class="col-action"></th>
-                    </tr>
-                  </thead>
-                  <tbody id="field-rows"></tbody>
-                </table>
+                <p class="small muted">
+                  対象入力欄の識別情報は、ログイン画面から設定するのが確実です。<br>
+                  区分: 「アカウント」は人ごとに値を持ち、「共通」はサービス全体で共有します。種別: 「秘密」の値は伏せ字で表示します。
+                </p>
+                <div class="table-wrap">
+                  <table class="field-table">
+                    <thead>
+                      <tr>
+                        <th>表示名</th>
+                        <th class="col-mode">区分</th>
+                        <th class="col-mode">種別</th>
+                        <th>対象入力欄の識別情報</th>
+                        <th class="col-action"><span class="visually-hidden">操作</span></th>
+                      </tr>
+                    </thead>
+                    <tbody id="field-rows"></tbody>
+                  </table>
+                </div>
                 <p id="field-empty" class="small muted hidden">項目が登録されていません。ログイン画面で拡張アイコンから「このログイン画面を設定」を実行してください。</p>
               </section>
 
               <section>
                 <h3>サービス共通値</h3>
+                <p class="small muted">区分が「共通」の項目の値です。アカウントの自動保存には含まれず、「サービス設定を保存」で保存されます。</p>
                 <div id="shared-values" class="value-grid"></div>
                 <p id="shared-empty" class="small muted hidden">区分が「共通」の項目はありません。</p>
               </section>
@@ -129,15 +151,15 @@
           <h3>マスターパスワードの変更</h3>
           <form id="form-password" class="stack narrow">
             <div>
-              <div class="field-label">現在のマスターパスワード</div>
+              <label class="field-label" for="current-password">現在のマスターパスワード</label>
               <input type="password" id="current-password" autocomplete="current-password">
             </div>
             <div>
-              <div class="field-label">新しいマスターパスワード（8文字以上）</div>
+              <label class="field-label" for="new-password">新しいマスターパスワード（8文字以上）</label>
               <input type="password" id="new-password" autocomplete="new-password">
             </div>
             <div>
-              <div class="field-label">確認のため再入力</div>
+              <label class="field-label" for="new-password-confirm">確認のため再入力</label>
               <input type="password" id="new-password-confirm" autocomplete="new-password">
             </div>
             <div class="row">
@@ -148,13 +170,13 @@
         </section>
 
         <section class="block">
-          <h3>■ マスターバックアップ</h3>
+          <h3>マスターバックアップ</h3>
           <p class="small muted">
             Vault 全体の保全・復旧用です。バックアップファイルは暗号化されます。パスフレーズを忘れると復元できません。
           </p>
-          <form id="form-export" class="stack narrow">
+          <form id="form-export" class="stack narrow section-form">
             <div>
-              <div class="field-label">バックアップ用パスフレーズ（8文字以上）</div>
+              <label class="field-label" for="export-passphrase">バックアップ用パスフレーズ（8文字以上）</label>
               <input type="password" id="export-passphrase" autocomplete="new-password">
             </div>
             <div class="row">
@@ -162,21 +184,24 @@
               <div id="export-status" class="status"></div>
             </div>
           </form>
-          <form id="form-import" class="stack narrow">
+          <form id="form-import" class="stack narrow section-form">
             <div>
-              <div class="field-label">バックアップファイル</div>
+              <label class="field-label" for="import-file">バックアップファイル</label>
               <input type="file" id="import-file" accept=".json,application/json">
             </div>
             <div>
-              <div class="field-label">バックアップ用パスフレーズ</div>
+              <label class="field-label" for="import-passphrase">バックアップ用パスフレーズ</label>
               <input type="password" id="import-passphrase" autocomplete="off">
             </div>
             <div>
-              <div class="field-label">取り込み方法</div>
+              <label class="field-label" for="import-mode">取り込み方法</label>
               <select id="import-mode">
                 <option value="merge">追加（既存サービスは残す）</option>
                 <option value="replace">置換（既存サービスを削除）</option>
               </select>
+            </div>
+            <div id="import-replace-warning" class="notice warn hidden" role="note">
+              「置換」を選ぶと、現在登録されているサービスは削除され、バックアップの内容に置き換わります。
             </div>
             <div class="row">
               <button type="submit">バックアップを復元</button>
@@ -186,7 +211,7 @@
         </section>
 
         <section class="block">
-          <h3>■ アカウント共有</h3>
+          <h3>アカウント共有</h3>
           <p class="small muted">
             選択したサービス／アカウントだけを暗号化ファイルとして受け渡します。マスターバックアップとは別の独立した機能で、
             Vault 全体が含まれることはなく、既存の他のサービス・アカウントが置き換わることもありません。
@@ -238,22 +263,22 @@
     </div>
   </main>
 
-  <dialog id="share-export-dialog">
+  <dialog id="share-export-dialog" aria-labelledby="share-export-title">
     <form method="dialog" class="stack" id="share-export-form">
-      <h3>共有用ファイルを作成</h3>
+      <h3 id="share-export-title">共有用ファイルを作成</h3>
       <p class="small muted">共有するアカウントだけを選択してください。選択しなかったアカウントはファイルに含まれません。</p>
       <div id="share-export-services" class="stack share-service-list"></div>
-      <div id="share-export-admin-notice" class="notice hidden">管理者アカウントを含みます。共有先と取扱いを確認してください。</div>
-      <div class="small" id="share-export-count">選択中: 0件</div>
+      <div id="share-export-admin-notice" class="notice warn hidden" role="note">管理者アカウントを含みます。共有先と取扱いを確認してください。</div>
+      <div class="small" id="share-export-count" aria-live="polite">選択中: 0件</div>
       <div>
-        <div class="field-label">共有用パスフレーズ（8文字以上）</div>
+        <label class="field-label" for="share-export-passphrase">共有用パスフレーズ（8文字以上）</label>
         <input type="password" id="share-export-passphrase" autocomplete="new-password">
       </div>
       <div>
-        <div class="field-label">確認のため再入力</div>
+        <label class="field-label" for="share-export-passphrase-confirm">確認のため再入力</label>
         <input type="password" id="share-export-passphrase-confirm" autocomplete="new-password">
       </div>
-      <div class="row">
+      <div class="row dialog-actions">
         <button type="submit" class="primary">出力する</button>
         <button type="button" id="btn-share-export-cancel">閉じる</button>
         <div id="share-export-status" class="status"></div>
@@ -261,20 +286,25 @@
     </form>
   </dialog>
 
-  <dialog id="share-import-dialog">
+  <dialog id="share-import-dialog" aria-labelledby="share-import-title">
     <div class="stack">
-      <h3>共有用ファイルを取り込む</h3>
+      <h3 id="share-import-title">共有用ファイルを取り込む</h3>
+      <ol id="share-import-steps" class="steps" aria-label="取り込みの手順">
+        <li data-step="file" aria-current="step">ファイルを選ぶ</li>
+        <li data-step="preview">内容を確認</li>
+        <li data-step="done">取り込み完了</li>
+      </ol>
 
       <form id="share-import-step-file" class="stack">
         <div>
-          <div class="field-label">共有ファイル</div>
+          <label class="field-label" for="share-import-file">共有ファイル</label>
           <input type="file" id="share-import-file" accept=".json,application/json">
         </div>
         <div>
-          <div class="field-label">共有用パスフレーズ</div>
+          <label class="field-label" for="share-import-passphrase">共有用パスフレーズ</label>
           <input type="password" id="share-import-passphrase" autocomplete="off">
         </div>
-        <div class="row">
+        <div class="row dialog-actions">
           <button type="submit" id="btn-share-import-decrypt" class="primary">内容を確認</button>
           <button type="button" id="btn-share-import-cancel">閉じる</button>
           <div id="share-import-status" class="status"></div>
@@ -284,16 +314,16 @@
       <div id="share-import-step-preview" class="stack hidden">
         <p class="small muted">既存のサービス・アカウントが置き換わることはありません。表示された対象のみ追加・更新します。</p>
         <div id="share-import-preview-list" class="stack"></div>
-        <div id="share-import-admin-notice" class="notice hidden">管理者アカウントを含みます。取り扱いに注意してください。</div>
-        <div class="row">
+        <div id="share-import-admin-notice" class="notice warn hidden" role="note">管理者アカウントを含みます。取り扱いに注意してください。</div>
+        <div class="row dialog-actions">
           <button type="button" id="btn-share-import-commit" class="primary">取り込みを実行</button>
           <button type="button" id="btn-share-import-back">戻る</button>
         </div>
       </div>
 
       <div id="share-import-step-done" class="stack hidden">
-        <div id="share-import-result" class="status ok"></div>
-        <div class="row">
+        <div id="share-import-result" class="status ok" role="status"></div>
+        <div class="row dialog-actions">
           <button type="button" id="btn-share-import-close">閉じる</button>
         </div>
       </div>

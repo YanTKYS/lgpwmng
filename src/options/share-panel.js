@@ -163,6 +163,14 @@ export function createSharePanel({ onImported } = {}) {
   /** 復号済みの内容確認から取り込み実行までの間だけ保持する。保存はしない。 */
   let pending = null;
 
+  /** 手順表示（ファイルを選ぶ → 内容を確認 → 取り込み完了）の現在位置を示す。表示のみ。 */
+  function showStep(step) {
+    for (const item of importDialog.querySelectorAll('#share-import-steps li')) {
+      if (item.dataset.step === step) item.setAttribute('aria-current', 'step');
+      else item.removeAttribute('aria-current');
+    }
+  }
+
   function resetImportDialog() {
     pending = null;
     $('#share-import-step-file', importDialog).classList.remove('hidden');
@@ -173,6 +181,7 @@ export function createSharePanel({ onImported } = {}) {
     setStatus($('#share-import-status', importDialog), '');
     clear($('#share-import-preview-list', importDialog));
     $('#share-import-admin-notice', importDialog).classList.add('hidden');
+    showStep('file');
   }
 
   function renderPreview(plan) {
@@ -217,6 +226,7 @@ export function createSharePanel({ onImported } = {}) {
     pending = null;
     $('#share-import-step-preview', importDialog).classList.add('hidden');
     $('#share-import-step-file', importDialog).classList.remove('hidden');
+    showStep('file');
   });
 
   importDialog.addEventListener('close', () => resetImportDialog());
@@ -248,6 +258,7 @@ export function createSharePanel({ onImported } = {}) {
       renderPreview(plan);
       $('#share-import-step-file', importDialog).classList.add('hidden');
       $('#share-import-step-preview', importDialog).classList.remove('hidden');
+      showStep('preview');
     } catch (error) {
       // 失敗時は入力内容を消さない。打ち間違い 1 文字のために、長いパスフレーズと
       // ファイル選択をすべて入れ直すことになるため。
@@ -269,10 +280,12 @@ export function createSharePanel({ onImported } = {}) {
       $('#share-import-result', importDialog).textContent = describeImportResult(result);
       $('#share-import-step-preview', importDialog).classList.add('hidden');
       $('#share-import-step-done', importDialog).classList.remove('hidden');
+      showStep('done');
     } catch (error) {
       setStatus($('#share-import-status', importDialog), error.message, 'error');
       $('#share-import-step-preview', importDialog).classList.add('hidden');
       $('#share-import-step-file', importDialog).classList.remove('hidden');
+      showStep('file');
     }
   });
 }
