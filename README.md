@@ -439,7 +439,7 @@ src/
     share-panel.js          アカウント共有の UI（共有用エクスポート／インポート）
   setup/                    ログイン画面設定ページ（入力欄の対応付け）
 test/                       自動テスト（`npm test` / node:test。ブラウザ不要）
-tools/                      公開用 ZIP の生成・公開ドキュメントの生成（Node 標準のみ）
+tools/                      公開用 ZIP の生成・CRX の検証・公開ドキュメントの生成（Node 標準のみ）
 docs/                       GitHub Pages で公開するドキュメントと審査用デモ
   webstore/                 Chrome ウェブストアの申告資料・掲載文案・チェックリスト
 PRIVACY.md                  プライバシーポリシー（docs/privacy.html の出典）
@@ -465,6 +465,10 @@ Chrome ウェブストアでの公開を準備しています。申請に必要�
 | 申請チェックリスト（Dashboard 上の作業） | [docs/webstore/checklist.md](docs/webstore/checklist.md) |
 
 公開用 ZIP は `npm run package`、または GitHub Actions の `webstore-package` workflow で生成します。
+
+リリースタグ（`v*`）からは、`internal-crx` workflow が公開用 ZIP と**庁内テスト配布用の署名済み CRX**を GitHub Release へ添付します
+（署名鍵は Secrets に固定で保管）。IIS からの任意インストールの検証手順は
+[docs/internal-crx-distribution.md](docs/internal-crx-distribution.md) にあり、**実機での導入可否は未検証**です。
 
 ## 14. 既知の制限
 

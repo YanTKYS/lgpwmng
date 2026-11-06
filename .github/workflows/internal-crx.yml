@@ -1,0 +1,162 @@
+# 庁内テスト配布用の署名済み CRX を、リリースタグから生成して GitHub Release へ添付する。
+#
+#   タグ v* → テスト・バージョン照合 → Web ストア用 ZIP → Chrome 公式の --pack-extension で CRX
+#           → 署名・内容の検証 → artifact → GitHub Release へ ZIP と CRX を添付
+#
+# - Chrome ウェブストアへの自動公開は行わない。CRX 自動更新用 XML・IIS への自動アップロードも行わない。
+# - 署名鍵は Secrets の LGPWMNG_CRX_KEY（PEM）に固定で保管する。未設定なら理由を示して失敗し、
+#   新しい鍵を黙って作ることはしない。作り方と保管方法は docs/internal-crx-distribution.md。
+# - 鍵を渡すのはこの workflow の「CRX を生成」ステップだけ。Pull Request・main への push では
+#   実行されず（trigger はタグのみ）、既存の webstore-package workflow は鍵を使わない。
+name: internal-crx
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      extension_id: ${{ steps.verify.outputs.extension_id }}
+
+    steps:
+      - name: リポジトリを取得
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 鍵を扱うため、main に含まれないコミットに付けたタグからは実行しない。
+      - name: タグのコミットが main に含まれることを確認
+        run: |
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::このタグのコミットは main に含まれていません。署名鍵を使うため、main のコミットに付けたタグだけを対象にします。" >&2
+            exit 1
+          fi
+
+      - name: Node.js を用意
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 自動テスト
+        run: npm test
+
+      - name: バージョンを取得し、タグと照合
+        id: version
+        run: |
+          version="$(node -p "require('./manifest.json').version")"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::タグ v${tag} と manifest.json の ${version} が一致しません。" >&2
+            exit 1
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "zip=lgpwmng-webstore-v${version}.zip" >> "$GITHUB_OUTPUT"
+          echo "crx=lgpwmng-v${version}.crx" >> "$GITHUB_OUTPUT"
+
+      - name: 公開用 ZIP を生成
+        run: npm run package
+
+      - name: Chrome を確認
+        run: google-chrome --version
+
+      # 秘密鍵は一時ファイルへ書き、ステップの終了時に必ず削除する。
+      # 鍵はパッケージ対象のディレクトリの外に置くため、CRX にも artifact にも入らない。
+      - name: CRX を生成
+        env:
+          CRX_KEY: ${{ secrets.LGPWMNG_CRX_KEY }}
+          ZIP: dist/${{ steps.version.outputs.zip }}
+          CRX: dist/${{ steps.version.outputs.crx }}
+        run: |
+          if [ -z "$CRX_KEY" ]; then
+            echo "::error::Secrets の LGPWMNG_CRX_KEY が未設定です。CRX の署名鍵は初回に一度だけ作って固定します（拡張 ID を保つため、毎回は作りません）。作り方は docs/internal-crx-distribution.md を参照してください。" >&2
+            exit 1
+          fi
+
+          work="$(mktemp -d)"
+          keydir="$(mktemp -d)"
+          trap 'rm -rf "$work" "$keydir"' EXIT
+          umask 077
+          printf '%s\n' "$CRX_KEY" > "$keydir/key.pem"
+
+          # Web ストア用 ZIP と同じ内容を展開して CRX にする。
+          mkdir "$work/lgpwmng"
+          unzip -q "$ZIP" -d "$work/lgpwmng"
+
+          google-chrome --headless=new --no-sandbox --disable-gpu \
+            --pack-extension="$work/lgpwmng" \
+            --pack-extension-key="$keydir/key.pem"
+
+          test -f "$work/lgpwmng.crx" || { echo "::error::Chrome が CRX を生成しませんでした。鍵の形式（PEM）を確認してください。" >&2; exit 1; }
+          mv "$work/lgpwmng.crx" "$CRX"
+
+      - name: CRX の署名と内容を確認
+        id: verify
+        env:
+          EXPECTED_ID: ${{ vars.LGPWMNG_CRX_EXTENSION_ID }}
+        run: |
+          zip="dist/${{ steps.version.outputs.zip }}"
+          crx="dist/${{ steps.version.outputs.crx }}"
+          args=(verify "$crx" --zip "$zip")
+          # 拡張 ID が決まったら変数 LGPWMNG_CRX_EXTENSION_ID に登録すると、鍵の取り違えを検出できる。
+          if [ -n "$EXPECTED_ID" ]; then args+=(--expect-id "$EXPECTED_ID"); fi
+          output="$(node tools/crx.mjs "${args[@]}")"
+          echo "$output"
+          id="$(printf '%s' "$output" | sed -n 's/.*拡張 ID: \([a-p]\{32\}\).*/\1/p')"
+          test -n "$id" || { echo "::error::拡張 ID を取得できませんでした。" >&2; exit 1; }
+          echo "extension_id=${id}" >> "$GITHUB_OUTPUT"
+          {
+            echo "### 庁内テスト用 CRX"
+            echo ""
+            echo "- ファイル: \`$(basename "$crx")\`"
+            echo "- 拡張 ID: \`${id}\`（署名鍵が同じなら、次版でも変わりません）"
+            echo "- 実機での導入可否は未検証です。docs/internal-crx-distribution.md の手順で確認してください。"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: artifact として保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: lgpwmng-release-files
+          path: |
+            dist/${{ steps.version.outputs.zip }}
+            dist/${{ steps.version.outputs.crx }}
+          if-no-files-found: error
+          retention-days: 90
+
+  # 鍵を使わない別ジョブで、成果物を Release へ添付する。
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: artifact を取得
+        uses: actions/download-artifact@v4
+        with:
+          name: lgpwmng-release-files
+          path: dist
+
+      - name: GitHub Release へ添付
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          EXTENSION_ID: ${{ needs.build.outputs.extension_id }}
+        run: |
+          ls -l dist
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            # 既にある Release（手書きのノートなど）はそのままにして、ファイルだけ添付する。
+            gh release upload "$TAG" dist/*.zip dist/*.crx --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            notes="$(printf '%s\n' \
+              "- \`lgpwmng-webstore-v*.zip\`: Chrome ウェブストアへアップロードする ZIP" \
+              "- \`lgpwmng-v*.crx\`: 庁内テスト配布用の署名済み CRX（拡張 ID: \`${EXTENSION_ID}\`）。実機での導入可否は未検証です。手順は docs/internal-crx-distribution.md" \
+              "" \
+              "変更内容は release-note.md を参照してください。")"
+            gh release create "$TAG" dist/*.zip dist/*.crx --title "lgpwmng $TAG" --notes "$notes" --repo "$GITHUB_REPOSITORY"
+          fi
