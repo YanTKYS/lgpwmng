@@ -40,11 +40,11 @@ select.mode {
   flex: none;
 }
 
-#field-table .col-use { width: 40px; }
-#field-table .col-label { width: 170px; }
-#field-table .col-scope { width: 110px; }
-#field-table .col-kind { width: 90px; }
-#field-table .col-action { width: 80px; white-space: nowrap; }
+#field-table .col-use { width: 44px; }
+#field-table .col-label { width: 150px; }
+#field-table .col-scope { width: 126px; }
+#field-table .col-kind { width: 100px; }
+#field-table .col-action { width: 90px; white-space: nowrap; }
 
 #field-table td {
   vertical-align: middle;

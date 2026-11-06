@@ -428,7 +428,8 @@ src/
     vault-store.js          暗号化保存・ロック状態管理・バックアップ/共有の入出力
     page-agent.js           ページ内で実行する走査 / 入力 / 現在値取得 / 強調表示処理
   ui/
-    ui.css                  共通スタイル
+    ui.css                  共通スタイル（popup を含む全画面で共用）
+    fluent.css              設定画面・ログイン画面設定向けの見た目の規則（body.fluent 配下に限定。popup には適用しない）
     dom.js                  DOM ヘルパー
     download.js             JSON ファイルのダウンロード補助（バックアップ／共有で共用）
     account-editor.js       アカウント一覧・値編集の共通 UI（options / setup 共用）

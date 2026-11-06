@@ -1,17 +1,33 @@
+/* 設定画面のレイアウト。見た目の基本規則は ../ui/fluent.css（body.fluent）に集約している。 */
+
 body {
-  min-width: 720px;
+  --header-h: 52px;
+  min-width: 0;
 }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* --- ヘッダー・タブ ---------------------------------------------------------- */
 
 .app-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  min-height: var(--header-h);
+  padding: 0 16px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-sub);
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
 }
 
 .spacer {
@@ -20,27 +36,58 @@ body {
 
 .tabs {
   display: flex;
+  align-self: stretch;
   gap: 4px;
 }
 
-.tab-button[aria-selected="true"] {
-  background: var(--bg);
-  border-color: var(--accent);
-  color: var(--accent);
+/* タブ: 選択中は下線と太字で示す（色だけに頼らない）。 */
+.options-page .tab-button {
+  min-height: 0;
+  padding: 0 12px;
+  border: none;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--fg-muted);
+  font-weight: 400;
+}
+
+.options-page .tab-button:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: transparent;
+  color: var(--fg);
+}
+
+.options-page .tab-button[aria-selected="true"] {
+  background: none;
+  border-bottom-color: var(--accent);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.options-page .tab-button[aria-selected="true"]:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-bottom-color: var(--accent);
+}
+
+.options-page .tab-button:focus-visible {
+  outline-offset: -3px;
 }
 
 .locked-panel {
-  padding: 16px;
+  padding: 24px 16px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  max-width: 380px;
+  gap: 8px;
+  max-width: 420px;
 }
+
+/* --- サービスタブの骨格 ------------------------------------------------------- */
 
 .tab-panel[data-panel="services"] {
   display: flex;
   align-items: stretch;
-  min-height: calc(100vh - 41px);
+  min-height: calc(100vh - var(--header-h));
 }
 
 .tab-panel.hidden {
@@ -48,17 +95,22 @@ body {
 }
 
 .sidebar {
-  width: 230px;
+  width: 264px;
   flex: none;
   border-right: 1px solid var(--border);
-  padding: 10px;
+  background: var(--bg-sub);
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.sidebar-head input {
-  flex: 1;
+.sidebar-title h2 {
+  font-size: 14px;
+}
+
+.sidebar-title .badge {
+  background: var(--bg);
 }
 
 .service-list {
@@ -71,54 +123,123 @@ body {
   overflow-y: auto;
 }
 
-.service-list li button {
+.options-page .service-list li button {
   width: 100%;
+  min-height: 0;
   text-align: left;
+  font-weight: 400;
   border: 1px solid transparent;
+  border-left: 3px solid transparent;
   background: none;
-  padding: 5px 6px;
+  padding: 6px 8px;
   border-radius: var(--radius);
+  overflow-wrap: anywhere;
 }
 
-.service-list li button:hover {
-  background: var(--bg-sub);
+.options-page .service-list li button:hover {
+  background: var(--bg-hover);
+  border-color: transparent;
+  border-left-color: transparent;
 }
 
-.service-list li button[aria-current="true"] {
-  background: var(--bg-sub);
-  border-color: var(--accent);
+/* 現在の選択: 背景・左の太線・名称の太字で示す。 */
+.options-page .service-list li button[aria-current="true"] {
+  background: var(--bg-selected);
+  border-left-color: var(--accent);
+}
+
+.options-page .service-list li button[aria-current="true"] .service-name {
+  font-weight: 600;
+}
+
+.options-page .service-list li button[aria-current="true"]:hover {
+  background: var(--bg-selected);
+  border-left-color: var(--accent);
+}
+
+/* 未保存の新規サービス（一覧に出る仮の行） */
+.service-list li.draft-item {
+  padding: 6px 8px;
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--bg-selected);
 }
 
 .service-list .sub {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--fg-muted);
   overflow-wrap: anywhere;
 }
 
+.service-list li.empty-item {
+  padding: 6px 8px;
+}
+
+/* --- 編集領域 ---------------------------------------------------------------- */
+
 .editor {
   flex: 1;
-  padding: 12px 16px 32px;
+  padding: 16px 24px 40px;
   min-width: 0;
 }
 
 .editor-head {
   position: sticky;
-  top: 41px;
+  top: var(--header-h);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   background: var(--bg);
-  padding: 4px 0;
+  padding: 4px 0 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.editor-title-row {
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.editor-actions {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.editor-actions .status {
+  min-height: 0;
+  flex: 0 1 auto;
+}
+
+/* 未保存の変更: 色だけでなく文言でも示す。 */
+.badge.unsaved {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.save-policy {
+  padding: 8px 12px;
+  border-left: 4px solid var(--border-strong);
+  background: var(--bg-sub);
+  border-radius: var(--radius);
 }
 
 .block {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-bottom: 12px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 
 .block-head {
   align-items: baseline;
+}
+
+.block-head h3 {
+  font-size: 16px;
 }
 
 .grid-2 {
@@ -127,15 +248,24 @@ body {
   gap: 10px;
 }
 
+/* サービス設定（折りたたみ）: 閉じていても何が入っているか分かる。 */
 .service-settings summary {
   cursor: pointer;
   font-weight: 600;
-  font-size: 13px;
-  padding: 2px 0;
+  font-size: 16px;
+  padding: 4px 0;
 }
 
 .service-settings summary:hover {
   color: var(--accent);
+}
+
+.service-settings .summary-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--fg-muted);
 }
 
 .service-settings[open] summary {
@@ -143,14 +273,15 @@ body {
 }
 
 .service-settings-body {
-  padding-top: 4px;
+  padding-top: 8px;
+  gap: 16px;
 }
 
 .service-settings-body section {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding-bottom: 12px;
+  padding-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -159,8 +290,21 @@ body {
   padding-bottom: 0;
 }
 
-.col-mode { width: 130px; }
-.col-action { width: 60px; }
+.service-settings-body h3 {
+  font-size: 14px;
+}
+
+/* 幅が足りないときは表の中だけを横スクロールにし、ページ全体ははみ出させない。 */
+.table-wrap {
+  position: relative; /* .visually-hidden を表の内側に閉じ込め、ページ全体の横はみ出しを防ぐ */
+  overflow-x: auto;
+}
+
+.rule-table { min-width: 640px; }
+.field-table { min-width: 640px; }
+
+.col-mode { width: 150px; }
+.col-action { width: 64px; }
 
 td select, td input {
   width: 100%;
@@ -168,7 +312,7 @@ td select, td input {
 
 .locator-summary {
   font-family: ui-monospace, Consolas, monospace;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--fg-muted);
   overflow-wrap: anywhere;
 }
@@ -181,18 +325,42 @@ td select, td input {
 }
 
 .narrow {
-  max-width: 380px;
+  max-width: 400px;
 }
 
+/* --- 全般タブ ---------------------------------------------------------------- */
+
 .general-panel {
-  padding: 14px 16px;
-  max-width: 720px;
+  padding: 16px 24px 40px;
+  max-width: 760px;
+  gap: 16px;
 }
+
+.general-panel > .block {
+  padding: 16px;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.general-panel h3 {
+  font-size: 16px;
+}
+
+.section-form + .section-form {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+/* --- ダイアログ -------------------------------------------------------------- */
 
 dialog {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-dialog);
+  padding: 20px 24px;
   max-width: 560px;
   width: 92vw;
   max-height: 85vh;
@@ -201,8 +369,54 @@ dialog {
   background: var(--bg);
 }
 
+dialog h3 {
+  font-size: 18px;
+}
+
 dialog::backdrop {
   background: rgba(0, 0, 0, 0.4);
+}
+
+/* 操作の並び: 主操作を先頭に、「閉じる」「戻る」を続け、結果表示は右へ。 */
+.dialog-actions {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding-top: 4px;
+}
+
+.dialog-actions .status {
+  flex: 1 1 160px;
+  min-height: 0;
+}
+
+/* 取り込みの手順表示。現在の手順は太字と「現在」の記号でも示す。 */
+.steps {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+
+.steps li {
+  counter-increment: step;
+}
+
+.steps li::before {
+  content: counter(step) ". ";
+}
+
+.steps li[aria-current="step"] {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.steps li[aria-current="step"]::after {
+  content: "（現在）";
+  font-weight: 400;
 }
 
 .share-service-list {
@@ -213,12 +427,65 @@ dialog::backdrop {
 .share-service-group {
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 8px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow-wrap: anywhere;
 }
 
 .share-account-row {
   gap: 8px;
+  min-height: 28px;
+}
+
+/* --- 狭い幅 ------------------------------------------------------------------ */
+
+@media (max-width: 760px) {
+  .tab-panel[data-panel="services"] {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .service-list {
+    max-height: 200px;
+  }
+
+  .editor {
+    padding: 12px 16px 32px;
+  }
+
+  .editor-head {
+    position: static;
+  }
+
+  .general-panel {
+    padding: 12px 16px 32px;
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .steps {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+
+  .app-header {
+    padding: 4px 12px;
+  }
+
+  .tabs {
+    flex-wrap: wrap;
+  }
+
+  .options-page .tab-button {
+    padding: 8px 10px;
+  }
 }

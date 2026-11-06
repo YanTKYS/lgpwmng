@@ -140,6 +140,34 @@ export function createServiceEditor({ onChanged, onAccountsSaved }) {
     renderFields();
     renderSharedValues();
     renderAccounts();
+    renderSaveState();
+  }
+
+  /**
+   * 保存方法の違い（アカウントは自動保存、サービス設定は明示保存）と、未保存の変更の有無を表示する。
+   * 表示だけを更新し、保存の動作そのものには関与しない。
+   */
+  function renderSaveState() {
+    const note = $('#account-autosave-note');
+    const badge = $('#service-dirty');
+    if (!service) {
+      badge.classList.add('hidden');
+      return;
+    }
+    note.textContent = persisted
+      ? 'アカウントの変更は自動で保存されます。'
+      : '新規サービスです。最初に「サービス設定を保存」を押すまで、アカウントの変更も保存されません。';
+    let label = '';
+    if (!persisted) label = '未保存（新規）';
+    else if (settingsSignature(service) !== settingsSignature(persisted)) label = '未保存のサービス設定あり';
+    badge.textContent = label;
+    badge.classList.toggle('hidden', !label);
+  }
+
+  /** アカウント以外（＝明示保存の対象）の内容。自動保存の影響を受けないよう accounts と更新日時は除く。 */
+  function settingsSignature(source) {
+    const { accounts, updatedAt, ...settings } = source;
+    return JSON.stringify(settings);
   }
 
   function renderRules() {
@@ -277,6 +305,16 @@ export function createServiceEditor({ onChanged, onAccountsSaved }) {
 
   // --- 操作 -----------------------------------------------------------------
 
+  // 入力・選択・ボタン操作のたびに、未保存の変更の有無を表示へ反映する。
+  // 入力中の指摘（aria-invalid）は、その欄を編集した時点で外す。
+  const editorBody = $('#editor-body');
+  editorBody.addEventListener('input', (event) => {
+    if (event.target.getAttribute && event.target.getAttribute('aria-invalid')) event.target.removeAttribute('aria-invalid');
+    if (service) renderSaveState();
+  });
+  editorBody.addEventListener('change', () => { if (service) renderSaveState(); });
+  editorBody.addEventListener('click', () => { if (service) renderSaveState(); });
+
   $('#svc-name').addEventListener('input', (event) => {
     if (!service) return;
     service.name = event.target.value;
@@ -312,16 +350,48 @@ export function createServiceEditor({ onChanged, onAccountsSaved }) {
     return '';
   }
 
+  /** 入力エラーの原因となる欄を示し、折りたたまれていれば開いてフォーカスを移す。 */
+  function showProblemTarget() {
+    for (const node of editorBody.querySelectorAll('[aria-invalid]')) node.removeAttribute('aria-invalid');
+    let target = null;
+    if (!service.name.trim()) {
+      target = $('#svc-name');
+    } else {
+      $('.service-settings').open = true;
+      if (!service.matchRules.length) {
+        target = $('#btn-add-rule');
+      } else {
+        const rows = Array.from($('#rule-rows').children);
+        service.matchRules.forEach((rule, index) => {
+          if (rule.origin || isPendingRule(rule)) return;
+          const input = rows[index] && rows[index].querySelector('input');
+          if (!input) return;
+          input.setAttribute('aria-invalid', 'true');
+          if (!target) target = input;
+        });
+      }
+    }
+    if (target) {
+      if (target.tagName === 'INPUT') target.setAttribute('aria-invalid', 'true');
+      target.focus();
+    }
+  }
+
   $('#btn-save-service').addEventListener('click', async () => {
     if (!service) return;
     const problem = validate();
     if (problem) {
       setStatus($('#editor-status'), problem, 'error');
+      showProblemTarget();
       return;
     }
+    for (const node of editorBody.querySelectorAll('[aria-invalid]')) node.removeAttribute('aria-invalid');
     // クリックした時点の内容で固定する。キュー内の先行する自動保存を待つ間に
     // さらに編集されても、保存対象がその分だけ変わってしまわないようにするため。
     const snapshot = snapshotService(service);
+    const saveButton = $('#btn-save-service');
+    saveButton.disabled = true;
+    setStatus($('#editor-status'), '保存中…', 'muted');
     try {
       // アカウントの自動保存と同じキューを通し、古い保存処理と新しい保存処理が
       // 前後することなく順番に実行されるようにする。
@@ -334,6 +404,8 @@ export function createServiceEditor({ onChanged, onAccountsSaved }) {
       setStatus($('#editor-status'), '保存しました。', 'ok');
     } catch (error) {
       setStatus($('#editor-status'), error.message, 'error');
+    } finally {
+      saveButton.disabled = false;
     }
   });
 

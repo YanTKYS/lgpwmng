@@ -7,11 +7,13 @@ import { downloadJson, timestamp } from '../ui/download.js';
 import { createServiceEditor } from './service-editor.js';
 import { createSharePanel } from './share-panel.js';
 
-const state = { services: [], selectedId: null, filter: '' };
+// draft: 「新規」で作成中の、まだ一度も保存していないサービスがあるか（一覧に仮の行を出すための表示用）。
+const state = { services: [], selectedId: null, filter: '', draft: false };
 
 const editor = createServiceEditor({
   onChanged: async (serviceId) => {
     state.selectedId = serviceId;
+    state.draft = false;
     await reloadServices();
   },
   // アカウントの自動保存後は一覧の表示だけを更新する。編集中の内容は読み直さない。
@@ -79,8 +81,21 @@ function renderList() {
     ? state.services.filter((service) => matchesFilter(service, filter))
     : state.services;
 
+  $('#service-count').textContent = filter
+    ? `${services.length} / ${state.services.length}件`
+    : `${state.services.length}件`;
+
+  if (state.draft) {
+    list.append(el('li', { className: 'draft-item', attrs: { 'aria-current': 'true' } }, [
+      el('span', { className: 'service-name', text: '新規サービス' }),
+      el('span', { className: 'sub', text: '未保存（右の画面で保存すると一覧に追加されます）' }),
+    ]));
+  }
+
   if (!services.length) {
-    list.append(el('li', { className: 'small muted', text: filter ? '該当するサービスがありません。' : 'サービスが登録されていません。' }));
+    if (!state.draft || filter) {
+      list.append(el('li', { className: 'small muted empty-item', text: filter ? '該当するサービスがありません。' : 'サービスが登録されていません。' }));
+    }
     return;
   }
 
@@ -90,6 +105,7 @@ function renderList() {
       on: {
         click: async () => {
           state.selectedId = service.id;
+          state.draft = false;
           renderList();
           try {
             await editor.load(service.id);
@@ -99,7 +115,7 @@ function renderList() {
         },
       },
     }, [
-      el('span', { text: service.name || '(名称未設定)' }),
+      el('span', { className: 'service-name', text: service.name || '(名称未設定)' }),
       el('span', {
         className: 'sub',
         text: service.matchRules.length ? describeRule(service.matchRules[0]) : 'URL条件なし',
@@ -149,6 +165,7 @@ $('#btn-lock').addEventListener('click', async () => {
   editor.clear();
   state.services = [];
   state.selectedId = null;
+  state.draft = false;
   await boot();
 });
 
@@ -161,6 +178,7 @@ $('#service-filter').addEventListener('input', (event) => {
 
 $('#btn-new-service').addEventListener('click', () => {
   state.selectedId = null;
+  state.draft = true;
   renderList();
   editor.createNew();
 });
@@ -188,6 +206,11 @@ $('#form-password').addEventListener('submit', async (event) => {
 });
 
 // --- バックアップ -----------------------------------------------------------
+
+// 「置換」は既存サービスを削除するため、選んだ時点で警告を表示する（取り込みの動作自体は変えない）。
+$('#import-mode').addEventListener('change', (event) => {
+  $('#import-replace-warning').classList.toggle('hidden', event.target.value !== 'replace');
+});
 
 $('#form-export').addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -221,6 +244,7 @@ $('#form-import').addEventListener('submit', async (event) => {
     fileInput.value = '';
     setStatus($('#import-status'), `${result.imported}件のサービスを取り込みました（現在${result.total}件）。`, 'ok');
     state.selectedId = null;
+    state.draft = false;
     editor.clear();
     await reloadServices();
   } catch (error) {
