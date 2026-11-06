@@ -5,3 +5,6 @@ node_modules/
 
 .DS_Store
 Thumbs.db
+
+# CRX の署名鍵（秘密鍵）。リポジトリに入れない。
+*.pem
