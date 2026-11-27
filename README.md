@@ -411,6 +411,7 @@ Chrome 標準を置き換えるものではなく、**業務システムのロ�
 ```text
 manifest.json               拡張定義（権限は activeTab / scripting / storage のみ）
 icons/                      アイコン
+LICENSE                     MIT License（対象範囲は「15. ライセンス」）
 src/
   lib/
     bytes.js                Base64・UTF-8 変換
@@ -445,7 +446,7 @@ docs/                       GitHub Pages で公開するドキュメントと審
 PRIVACY.md                  プライバシーポリシー（docs/privacy.html の出典）
 ```
 
-公開用 ZIP（`manifest.json` / `icons/` / `src/` のみ）は `npm run package` で生成します。
+公開用 ZIP（`manifest.json` / `icons/` / `src/` / `LICENSE` のみ）は `npm run package` で生成します。
 `test/` `docs/` `tools/` などの開発用ファイルは含まれません。
 
 ## 13. Chrome ウェブストア
@@ -480,3 +481,31 @@ Chrome ウェブストアでの公開を準備しています。申請に必要�
   入力できません。画面ごとに別サービスとして登録し、画面ごとに入力してください。
 - **入力欄が JavaScript で動的に生成される画面**では、入力欄が表示された状態で
   「このログイン画面を設定」を実行してください。表示されていない入力欄は候補に現れません。
+
+## 15. ライセンス
+
+このリポジトリの自作成果物は [MIT License](LICENSE)（Copyright (c) 2026 YanTKYS）で提供します。
+他の開発者・自治体が、利用・改変・再配布できます。
+
+**MIT の対象**
+
+- 拡張本体（`manifest.json` / `src/`）、`test/`、`tools/`、`.github/`
+- 自作の文書（README・PRIVACY.md・release-note.md・`docs/` の資料と審査用デモ）
+- `icons/`（青 `#1b64c4` の角丸正方形に白の南京錠を配した 4 サイズ）
+
+**MIT の対象外（このライセンスを適用しません）**
+
+- 利用者のデータ: 登録した認証情報、暗号化 Vault、マスターバックアップ、共有用ファイル
+- 組織固有の URL・設定・サービス定義
+- CRX の署名鍵（秘密鍵）。リポジトリには置かず、GitHub Secrets で管理します
+- Chrome 本体、Chrome ウェブストア、GitHub などの外部製品・サービス（各提供元の条件に従います）
+- 第三者の商標・ロゴ・素材（現在このリポジトリには含まれていません。含める場合は、元のライセンスと著作権表示を残します）
+
+**第三者のコード・素材の確認結果（v0.6.0 時点）**
+
+- 外部ライブラリ: ありません（`package.json` に依存関係なし。実行時に使うのは Web Crypto API と Chrome 拡張 API、ツールは Node 標準のみ）。
+  ビルド済み・minify 済みの第三者コードも含みません。
+- フォント: Segoe UI などの OS 付属フォント名を CSS で指定するだけで、フォントファイルは同梱・配信していません。
+- 外部の CDN・Web フォント・外部通信: ありません。
+
+配布物（`npm run package` で作る公開用 ZIP と、その ZIP から作る庁内テスト用 CRX）には、直下に `LICENSE` を同梱します。

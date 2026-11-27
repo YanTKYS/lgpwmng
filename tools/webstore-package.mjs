@@ -16,8 +16,11 @@ import { createZip } from './zip.mjs';
 
 export const REPO_ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 
-/** 公開用 ZIP へ入れるファイル・ディレクトリ（リポジトリ相対）。 */
-export const PACKAGE_ROOTS = ['manifest.json', 'icons', 'src'];
+/**
+ * 公開用 ZIP へ入れるファイル・ディレクトリ（リポジトリ相対）。
+ * LICENSE は配布物にライセンス全文を同梱するために含める（庁内テスト用 CRX もこの ZIP から作る）。
+ */
+export const PACKAGE_ROOTS = ['manifest.json', 'icons', 'src', 'LICENSE'];
 
 /** 実行に不要なため、許可リスト配下にあっても除外するファイル名。 */
 const EXCLUDED_NAMES = new Set(['.DS_Store', 'Thumbs.db']);

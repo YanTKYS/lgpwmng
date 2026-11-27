@@ -258,13 +258,14 @@ test('同意の記録は認証情報と別に保存し、バージョンで再�
 
 // --- 公開用パッケージ -----------------------------------------------------------
 
-test('公開用 ZIP の対象は manifest.json / icons / src だけ', () => {
-  assert.deepEqual(PACKAGE_ROOTS, ['manifest.json', 'icons', 'src']);
+test('公開用 ZIP の対象は manifest.json / icons / src / LICENSE だけ', () => {
+  assert.deepEqual(PACKAGE_ROOTS, ['manifest.json', 'icons', 'src', 'LICENSE']);
   const files = collectPackageFiles(ROOT);
   assert.ok(files.includes('manifest.json'));
+  assert.ok(files.includes('LICENSE'), 'ライセンス全文が公開用 ZIP に含まれていません');
   for (const file of files) {
     assert.ok(
-      file === 'manifest.json' || file.startsWith('icons/') || file.startsWith('src/'),
+      file === 'manifest.json' || file === 'LICENSE' || file.startsWith('icons/') || file.startsWith('src/'),
       `公開対象に想定外のファイルがあります: ${file}`,
     );
   }
@@ -293,7 +294,8 @@ test('実行に必要なファイルが公開用 ZIP から漏れていない', 
     assert.ok(files.includes(path), `参照されているのに公開用 ZIP へ入っていません: ${path}`);
   }
   // 逆に、パッケージへ入れるファイルはすべて manifest から到達できる（死蔵ファイルがない）。
-  for (const path of files) {
+  // LICENSE は実行時には読み込まれないが、配布物へライセンス全文を同梱するために入れている。
+  for (const path of files.filter((file) => file !== 'LICENSE')) {
     assert.ok(referenced.includes(path), `どこからも参照されていません: ${path}`);
   }
 });
@@ -303,6 +305,7 @@ test('生成した ZIP の直下に manifest.json があり、中身が一致す
   const names = entries.map((entry) => entry.name).sort();
 
   assert.ok(names.includes('manifest.json'), 'ZIP 直下に manifest.json がありません');
+  assert.ok(names.includes('LICENSE'), 'ZIP 直下に LICENSE がありません');
   // 「直下」であること: manifest.json を含むディレクトリで包まない。
   for (const name of names) {
     assert.ok(!name.startsWith('/'), `絶対パスで格納されています: ${name}`);
